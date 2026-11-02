@@ -135,7 +135,8 @@ let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, so
 let stack = [{ name:'root', params:{} }];
 let canHistory = true;
 let SHEET = null;
-let DATE_SEL = null;
+let dateOpenAt = 0;
+let dateDirty = false;
 let EDIT = null;
 let dragState = null;
 let suppressClickUntil = 0;
@@ -569,14 +570,13 @@ function renderSheet(p){
     }
     SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
-  // 说明：日期选择等子弹层打开时保留 SHEET，避免待办表单已填内容丢失
+  if (p.kind !== 'todo' && SHEET && SHEET.kind === 'todo' && SHEET._t !== p._t) SHEET = null;
 
   sheet.className = 'sheet' + (p.full ? ' is-full' : '') +
     (p.kind === 'settings' && UI.editing ? ' is-editing' : '');
 
   if (p.kind === 'settings') sheet.innerHTML = settingsHTML();
   else if (p.kind === 'todo') sheet.innerHTML = todoSheetHTML(p);
-  else if (p.kind === 'date') sheet.innerHTML = dateSheetHTML();
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
@@ -599,7 +599,6 @@ function hideSheet(){
   $('#sheetHost').hidden = true;
   $('#sheet').innerHTML = '';
   SHEET = null;
-  DATE_SEL = null;
 }
 
 /* ---------- 设置面板 ---------- */
@@ -715,9 +714,10 @@ function todoSheetHTML(p){
       '<div class="field-label">日期</div>' +
       '<div class="form-card"><div class="form-row">' + svg('calendar', 'ri') +
         '<span class="lbl">日期</span>' +
-        '<button class="date-open" data-act="open-date">' +
-          (f.date ? esc(fmtDate(f.date)) : '<span class="date-hint">未设置，点击选择</span>') +
-        '</button>' +
+        '<div class="date-cell">' +
+          '<input type="date" id="todoDate" class="' + (f.date ? '' : 'is-empty') + '" value="' + esc(f.date) + '" />' +
+          (f.date ? '' : '<span class="date-hint">未设置，点击选择</span>') +
+        '</div>' +
         (f.date ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
           '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
       '</div></div>' +
@@ -763,47 +763,6 @@ function listPickerHTML(){
       'style="' + (on ? 'background:' + l.color + ';color:#fff' : 'color:' + l.color) + '">' +
       svg(l.icon) + esc(l.name) + '</button>';
   }).join('');
-}
-
-/* ---------- 日期选择 ---------- */
-function dateSheetHTML(){
-  const sel = DATE_SEL;
-  if (!sel) return '';
-  const nowY = new Date().getFullYear();
-  const years = [];
-  for (let y = nowY - 5; y <= nowY + 10; y++) years.push(y);
-  if (years.indexOf(sel.y) < 0) years.push(sel.y);
-  years.sort(function(a, b){ return a - b; });
-
-  const dayCount = new Date(sel.y, sel.m, 0).getDate();
-  const yearOpts = years.map(function(y){
-    return '<option value="' + y + '"' + (y === sel.y ? ' selected' : '') + '>' + y + ' 年</option>';
-  }).join('');
-  const monthOpts = [];
-  for (let m = 1; m <= 12; m++) {
-    monthOpts.push('<option value="' + m + '"' + (m === sel.m ? ' selected' : '') + '>' + m + ' 月</option>');
-  }
-  const dayOpts = [];
-  for (let d = 1; d <= dayCount; d++) {
-    dayOpts.push('<option value="' + d + '"' + (d === sel.d ? ' selected' : '') + '>' + d + ' 日</option>');
-  }
-
-  return grab() +
-    '<div class="sheet-head">' +
-      '<h2 class="sheet-title">选择日期</h2>' +
-      '<button class="circle-btn" data-act="date-cancel" aria-label="关闭">' + svg('close') + '</button>' +
-    '</div>' +
-    '<div class="sheet-body">' +
-      '<div class="date-picker">' +
-        '<select class="date-sel" id="dateYear">' + yearOpts + '</select>' +
-        '<select class="date-sel" id="dateMonth">' + monthOpts.join('') + '</select>' +
-        '<select class="date-sel" id="dateDay">' + dayOpts.join('') + '</select>' +
-      '</div>' +
-      '<div class="sheet-actions">' +
-        '<button class="ghost-btn" data-act="date-cancel">取消</button>' +
-        '<button class="primary-btn" data-act="date-confirm">确定</button>' +
-      '</div>' +
-    '</div>';
 }
 
 /* ---------- 年份筛选 ---------- */
@@ -1082,22 +1041,7 @@ document.addEventListener('click', function(e){
       break;
     }
     case 'clear-date': SHEET.form.date = ''; renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId }); break;
-    case 'open-date': {
-      if (!SHEET) break;
-      const base = SHEET.form.date ? parseISO(SHEET.form.date) : new Date();
-      DATE_SEL = { y: base.getFullYear(), m: base.getMonth() + 1, d: base.getDate() };
-      push('sheet', { kind:'date' });
-      break;
-    }
-    case 'date-cancel': DATE_SEL = null; back(); break;
-    case 'date-confirm': {
-      if (DATE_SEL && SHEET) {
-        SHEET.form.date = toISO(new Date(DATE_SEL.y, DATE_SEL.m - 1, DATE_SEL.d));
-      }
-      DATE_SEL = null;
-      back();
-      break;
-    }
+
     case 'todo-save': saveTodoSheet(); break;
     case 'todo-edit': {
       // 详情面板 → 编辑表单，替换当前弹层，关闭后直接回到原页面
@@ -1152,6 +1096,7 @@ document.addEventListener('input', function(e){
     if (pv) pv.textContent = el.value + '%';
     return;
   }
+  if (el.id === 'todoDate') { dateDirty = true; return; }
   if (el.id === 'todoListName' && SHEET) {
     SHEET.form.listName = el.value;
     const key = el.value.trim().toLowerCase();
@@ -1166,16 +1111,21 @@ document.addEventListener('input', function(e){
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
   if (el.id === 'tagName' && EDIT) { EDIT.name = el.value; return; }
 });
+document.addEventListener('focusin', function(e){
+  if (e.target && e.target.id === 'todoDate') {
+    dateOpenAt = Date.now();
+    dateDirty = false;
+  }
+});
 document.addEventListener('change', function(e){
   const el = e.target;
-  if (!DATE_SEL) return;
-  if (el.id === 'dateYear') DATE_SEL.y = Number(el.value) || DATE_SEL.y;
-  else if (el.id === 'dateMonth') DATE_SEL.m = Number(el.value) || DATE_SEL.m;
-  else if (el.id === 'dateDay') DATE_SEL.d = Number(el.value) || DATE_SEL.d;
-  else return;
-  const maxDay = new Date(DATE_SEL.y, DATE_SEL.m, 0).getDate();
-  if (DATE_SEL.d > maxDay) DATE_SEL.d = maxDay;
-  renderSheet({ kind:'date' });
+  if (el.id !== 'todoDate' || !SHEET) return;
+  const val = el.value;
+  // 打开空日期输入时，Safari 可能直接回填「今天」；没有真正选择过就丢弃这次变更
+  const untouchedToday = !SHEET.form.date && val === todayISO() && !dateDirty && (Date.now() - dateOpenAt) < 1200;
+  if (untouchedToday) { el.value = SHEET.form.date || ''; return; }
+  SHEET.form.date = val;
+  renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
 });
 
 /* ============================================================

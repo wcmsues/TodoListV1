@@ -224,7 +224,7 @@ function normalizeDB(raw){
   const listIds = out.lists.map(l => l.id);
   (Array.isArray(raw.todos) ? raw.todos : []).forEach(t => {
     if (!t || typeof t !== 'object') return;
-    const title = String(t.title || '').trim();
+    const title = String(t.title || t.text || t.content || '').trim();
     if (!title) return;
     out.todos.push({
       id: t.id || uid(),
@@ -1539,22 +1539,36 @@ function exportJSON(){
 function pickFile(){
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'application/json,.json';
+  input.accept = 'application/json,.json,text/plain';
   input.addEventListener('change', function(){
     const f = input.files && input.files[0];
     if (!f) return;
     const reader = new FileReader();
     reader.onload = function(){
+      // 去掉记事本等工具写入的 BOM，否则 JSON.parse 会失败
+      const text = String(reader.result == null ? '' : reader.result).replace(/^\uFEFF/, '').trim();
+      if (!text) { toast('文件是空的'); return; }
       let parsed;
-      try { parsed = JSON.parse(String(reader.result)); }
-      catch (err) { toast('文件解析失败'); return; }
+      try { parsed = JSON.parse(text); }
+      catch (err) { toast('文件解析失败：不是有效的 JSON'); return; }
+      // 兼容早期导出的「待办数组」格式
+      if (Array.isArray(parsed)) parsed = { lists: [], todos: parsed };
       const next = normalizeDB(parsed);
-      if (!next.todos.length && !next.lists.length) { toast('文件中没有可导入的数据'); return; }
+      if (!next.lists.length && !next.todos.length) {
+        toast('文件里没有可识别的列表或待办');
+        return;
+      }
+      // 只有待办没有列表时补一个列表，避免导入后看不到内容
+      if (!next.lists.length) {
+        const lid = 'import-list';
+        next.lists.push({ id: lid, name: '导入', icon: 'inbox', color: PALETTE[0] });
+        next.todos.forEach(t => { t.listId = lid; });
+      }
       SHEET = { importData: next };
       push('sheet', { kind:'import', _t: uid() });
     };
-    reader.onerror = function(){ toast('文件读取失败'); };
-    reader.readAsText(f);
+    reader.onerror = function(){ toast('文件读取失败，请重试'); };
+    reader.readAsText(f, 'utf-8');
   });
   input.click();
 }

@@ -70,6 +70,8 @@ const ICONS = {
   minus:'<path d="M5 12h14"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
   close:'<path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4"/>',
+  filter:'<path d="M4 5.6h16l-6.2 7.4v5.4l-3.6 1.9v-7.3z"/>',
+  undo:'<path d="M4.4 10.6h9.4a5 5 0 0 1 0 10H8.6"/><path d="M8.6 6.2L4.4 10.6l4.2 4.4"/>',
   arrowUp:'<path d="M12 19V5M6 11l6-6 6 6"/>',
   arrowDown:'<path d="M12 5v14M6 13l6 6 6-6"/>',
   sort:'<path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/>',
@@ -92,8 +94,9 @@ const ICON_GROUPS = [
 const KEY = 'todolist.v2';
 const UIKEY = 'todolist.v2.ui';
 const LEGACY = 'todolist.v1';
-const PALETTE = ['#4A78B5','#A34E4E','#E08A3C','#C9A227','#5FB35F','#8FC24A','#3FB6C4',
-                 '#2E7C8F','#3B82F6','#4F5BD5','#9B4FBF','#E8505B','#8B6B4A','#4B4F54'];
+/* Apple 系统色（浅色模式取值）：饱和度、明度统一，白色图标压在上面都清楚 */
+const PALETTE = ['#007AFF','#FF3B30','#FF9500','#FFCC00','#34C759','#00C7BE',
+                 '#32ADE6','#5856D6','#AF52DE','#FF2D55','#A2845E','#8E8E93'];
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
@@ -108,11 +111,39 @@ function svg(name, cls){
   const body = ICONS[name] || ICONS.list;
   return '<svg viewBox="0 0 24 24"' + (cls ? ' class="' + cls + '"' : '') + '>' + body + '</svg>';
 }
+/* 轻触觉反馈，仅在支持的设备上生效 */
+function haptic(ms){
+  if (!navigator.vibrate) return;
+  try { navigator.vibrate(ms || 8); } catch (e) {}
+}
 function hexRgba(hex, a){
   let h = String(hex || '#888888').replace('#', '');
   if (h.length === 3) h = h.split('').map(c => c + c).join('');
   const n = parseInt(h, 16) || 0;
   return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+/* 浅色（黄、青等）直接当文字色会看不清：按对比度压暗到能读为止 */
+function ink(hex){
+  let h = String(hex || '#8E8E93').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#8E8E93';
+  const rgb = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  const lin = v => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  const lum = () => 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+  let f = 1;
+  while (f > 0.4 && 1.05 / (lum() + 0.05) < 3.1) {
+    f -= 0.05;
+    rgb[0] *= 0.95; rgb[1] *= 0.95; rgb[2] *= 0.95;
+  }
+  return '#' + rgb.map(v => {
+    const s = Math.max(0, Math.min(255, Math.round(v))).toString(16);
+    return s.length === 1 ? '0' + s : s;
+  }).join('');
+}
+/* 列表图标徽标：Apple 风格圆角方块 + 白色字形 */
+function iconBadge(icon, color, cls){
+  return '<span class="icon-badge' + (cls ? ' ' + cls : '') + '" style="--c:' + color + '">' +
+    svg(icon) + '</span>';
 }
 const pad2 = n => (n < 10 ? '0' : '') + n;
 const toISO = d => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
@@ -133,7 +164,9 @@ const isOverdue = t => !!t.date && !t.done && t.date < todayISO();
    ============================================================ */
 let DB = { version:2, lists:[], tags:[], todos:[] };
 let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, sorting:false, hideEmpty:false,
-           calRange:'week', calHideDone:false };
+           calRange:'week', hideDone:false, query:'' };
+let navDir = 0;   // 1 推入 / -1 退回 / 0 无方向
+let lastViewName = '';
 let stack = [{ name:'root', params:{} }];
 let canHistory = true;
 let SHEET = null;
@@ -146,11 +179,11 @@ let suppressClickUntil = 0;
    ============================================================ */
 function seed(){
   const L = [
-    { id:'l1', name:'工作', icon:'clipboard', color:PALETTE[10] },
-    { id:'l2', name:'学习', icon:'cap',       color:PALETTE[6] },
-    { id:'l3', name:'生活', icon:'home',      color:PALETTE[4] },
-    { id:'l4', name:'购物', icon:'cart',      color:PALETTE[12] },
-    { id:'l5', name:'电影', icon:'clapper',   color:PALETTE[2] }
+    { id:'l1', name:'工作', icon:'briefcase', color:'#FF3B30' },
+    { id:'l2', name:'学习', icon:'book',      color:'#007AFF' },
+    { id:'l3', name:'生活', icon:'home',      color:'#34C759' },
+    { id:'l4', name:'购物', icon:'cart',      color:'#FF9500' },
+    { id:'l5', name:'电影', icon:'clapper',   color:'#AF52DE' }
   ];
   /* 日期用相对今天的偏移，保证任何时候打开都能看到
      今日 / 本周 / 本月 / 逾期 / 无日期 / 已完成 等状态 */
@@ -282,7 +315,7 @@ function saveUI(){
   try {
     localStorage.setItem(UIKEY, JSON.stringify({
       cols: UI.cols, hideEmpty: !!UI.hideEmpty,
-      calRange: UI.calRange, calHideDone: !!UI.calHideDone
+      calRange: UI.calRange, hideDone: !!UI.hideDone
     }));
   } catch (e) {}
 }
@@ -305,7 +338,7 @@ function loadAll(){
     if (ui && ui.cols === 1) UI.cols = 1;
     if (ui && ui.hideEmpty === true) UI.hideEmpty = true;
     if (ui && (ui.calRange === 'day' || ui.calRange === 'week' || ui.calRange === 'month')) UI.calRange = ui.calRange;
-    if (ui && ui.calHideDone === true) UI.calHideDone = true;
+    if (ui && (ui.hideDone === true || ui.calHideDone === true)) UI.hideDone = true;
   } catch (e) {}
 }
 
@@ -325,17 +358,17 @@ function dayGap(iso){
   const b = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
   return Math.round((a - b) / 86400000);
 }
-/* 排序：星标置顶 → 日期越接近今日越靠前 → 同距离时逾期优先 → 创建时间 */
+/* 排序：星标置顶 → 逾期 → 今天 → 未来 → 无日期，同组内按日期与时间 */
 function todoOrder(a, b){
   const sa = a.starred ? 1 : 0, sb = b.starred ? 1 : 0;
   if (sa !== sb) return sb - sa;
   const ga = dayGap(a.date), gb = dayGap(b.date);
-  if (ga === null && gb === null) return (a.createdAt || 0) - (b.createdAt || 0);
-  if (ga === null) return 1;
-  if (gb === null) return -1;
-  const da = Math.abs(ga), db = Math.abs(gb);
-  if (da !== db) return da - db;
-  if (ga !== gb) return ga - gb;
+  const bucket = g => g === null ? 3 : (g < 0 ? 0 : (g === 0 ? 1 : 2));
+  const ba = bucket(ga), bb = bucket(gb);
+  if (ba !== bb) return ba - bb;
+  if (ba === 0 || ba === 2) {
+    if (ga !== gb) return ga - gb;
+  }
   // 同一天：有时间的在前，时间早的在前
   const ta = a.time || '', tb = b.time || '';
   if (ta !== tb) {
@@ -380,15 +413,18 @@ function push(name, params){
   if (canHistory) {
     try { history.pushState({ i: stack.length }, ''); } catch (e) { canHistory = false; }
   }
+  navDir = 1;
   renderApp();
 }
 function back(){
   if (stack.length <= 1) return;
+  navDir = -1;
   if (canHistory) { history.back(); }
   else { stack.pop(); renderApp(); }
 }
 window.addEventListener('popstate', function(){
   if (stack.length > 1) stack.pop();
+  navDir = -1;
   renderApp();
 });
 
@@ -422,8 +458,32 @@ function renderApp(){
   const bar = $('#tabBar');
   if (bar) bar.hidden = base.name !== 'root';
 
+  // 层级切换的方向感：只有视图真的换了才播放，避免弹层开合时背景抖动
+  const view = $('.view.is-active');
+  if (view) {
+    view.classList.remove('is-push', 'is-pop');
+    const viewName = view.dataset.view || '';
+    if (navDir && viewName !== lastViewName) {
+      void view.offsetWidth;
+      view.classList.add(navDir > 0 ? 'is-push' : 'is-pop');
+    }
+    lastViewName = viewName;
+  }
+  navDir = 0;
+  syncHeadCompact();
+
   if (sheetState) renderSheet(sheetState.params);
   else hideSheet();
+}
+
+/* 滚动时收起大标题 */
+function syncHeadCompact(){
+  $$('.view').forEach(function(v){
+    const sc = v.querySelector('.scroll');
+    const head = v.querySelector('.page-head');
+    if (!sc || !head) return;
+    head.classList.toggle('is-compact', sc.scrollTop > 16);
+  });
 }
 
 function syncSegment(){
@@ -437,6 +497,25 @@ function syncSegment(){
 /* ---------- 首页 ---------- */
 function renderHome(){
   const board = $('#board');
+  const searchEmpty = $('#searchEmpty');
+  const bar = $('.search-bar');
+  if (bar) bar.classList.toggle('has-value', !!UI.query);
+
+  // 搜索态：直接列出命中的待办
+  const q = String(UI.query || '').trim().toLowerCase();
+  if (q) {
+    $('#homeEmpty').hidden = true;
+    const hits = DB.todos
+      .filter(t => (t.title + ' ' + (t.note || '')).toLowerCase().indexOf(q) >= 0)
+      .sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+    board.innerHTML = hits.length
+      ? '<div class="board-col"><div class="big-card">' + hits.map(searchRowHTML).join('') + '</div></div>'
+      : '';
+    if (searchEmpty) searchEmpty.hidden = hits.length > 0;
+    return;
+  }
+  if (searchEmpty) searchEmpty.hidden = true;
+
   // 默认展示所有列表；在设置里开启「隐藏空列表」后，只显示还有未完成待办的列表
   const lists = UI.hideEmpty
     ? DB.lists.filter(function(l){
@@ -448,12 +527,12 @@ function renderHome(){
   const emptyTitle = $('#emptyTitle');
   const emptyHint = $('#emptyHint');
   if (emptyTitle) {
-    emptyTitle.textContent = hasLists ? '暂时没有列表或列表为空' : '暂时没有列表，请添加列表';
+    emptyTitle.textContent = hasLists ? '列表都是空的' : '还没有列表';
   }
   if (emptyHint) {
     emptyHint.textContent = hasLists
-      ? '新建一个列表，或到设置里关闭「隐藏空列表」'
-      : '新建列表后，就可以往里面添加待办了';
+      ? '新建一个列表，或在设置里关闭「隐藏空列表」'
+      : '新建一个列表，开始记录';
   }
   if (!lists.length) { board.innerHTML = ''; return; }
 
@@ -469,30 +548,68 @@ function renderHome(){
   }
 }
 
+/* 滑动操作外壳：右滑完成 / 左滑删除 */
+function swipeWrap(inner, id, done){
+  return '<div class="swipe" data-id="' + id + '">' +
+    '<div class="swipe-actions left">' +
+      '<button class="swipe-btn ' + (done ? 'is-restore' : 'is-done') + '" data-act="swipe-toggle" data-id="' + id + '">' +
+        (done ? '恢复' : '完成') + '</button>' +
+    '</div>' +
+    '<div class="swipe-actions right">' +
+      '<button class="swipe-btn is-del" data-act="swipe-del" data-id="' + id + '">删除</button>' +
+    '</div>' +
+    '<div class="swipe-body">' + inner + '</div>' +
+  '</div>';
+}
+
+function searchRowHTML(t){
+  const list = findList(t.listId);
+  const c = list ? list.color : PALETTE[0];
+  const meta = [];
+  if (list) meta.push('<span style="color:' + ink(list.color) + '">' + esc(list.name) + '</span>');
+  if (t.date) meta.push('<span class="' + (isOverdue(t) ? 'is-overdue' : '') + '">' +
+    fmtDate(t.date) + (t.time ? ' ' + t.time : '') + '</span>');
+  return swipeWrap(
+    '<div class="todo-row" data-todo="' + t.id + '">' +
+      '<button class="check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
+        'style="--c:' + ink(c) + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
+        '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
+      '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '">' +
+        '<div class="tr-title' + (t.done ? ' is-done' : '') + '">' + esc(t.title) + '</div>' +
+        (meta.length ? '<div class="tr-meta">' + meta.join('<span>·</span>') + '</div>' : '') +
+      '</div>' +
+      starHTML(t) +
+    '</div>', t.id, !!t.done);
+}
+
 function listCardHTML(list){
+  // 已完成的待办默认留在原位置，只有「隐藏已完成」开启时才过滤掉
   const all = DB.todos.filter(t => t.listId === list.id);
-  const open = sortedOpenTodos(list.id);
-  let items = open.map(t => cardItemHTML(t, list)).join('');
-  if (!open.length) items = '<div class="lc-empty">暂无待办</div>';
+  const shown = (UI.hideDone ? all.filter(t => !t.done) : all).slice().sort(todoOrder);
+  const openCount = all.filter(t => !t.done).length;
+  const items = shown.map(t => cardItemHTML(t, list)).join('') || '<div class="lc-empty">暂无待办</div>';
 
   return '<article class="list-card" data-list="' + list.id + '">' +
     '<div class="lc-head" data-act="open-list" data-id="' + list.id + '" style="--c:' + list.color + '">' +
-      svg(list.icon) +
+      iconBadge(list.icon, list.color) +
       '<span class="lc-name">' + esc(list.name) + '</span>' +
-      '<span class="lc-count">' + open.length + '/' + all.length + '</span>' +
+      '<span class="lc-count">' + openCount + '</span>' +
       '<svg class="lc-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>' +
     '</div>' +
     '<div class="lc-body">' + items +
       '<button class="lc-add" data-act="add-todo" data-list="' + list.id + '" ' +
-        'style="--c:' + list.color + ';--c-10:' + hexRgba(list.color, .1) + '">' +
+        'style="--c:' + list.color + ';--c-ink:' + ink(list.color) + ';--c-10:' + hexRgba(list.color, .1) + '">' +
         '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加待办</button>' +
     '</div></article>';
 }
 
 function cardItemHTML(t, list){
   const c = todoColor(t, list.color);
-  return '<div class="lc-item">' +
-    '<button class="lc-check" data-act="toggle" data-id="' + t.id + '" style="--c:' + c + '" aria-label="标记完成"></button>' +
+  return '<div class="lc-item' + (t.done ? ' is-done' : '') + '">' +
+    '<button class="lc-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
+      'style="--c:' + ink(c) + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
+      (t.done ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>' : '') +
+    '</button>' +
     '<div class="lc-main" data-act="edit-todo" data-id="' + t.id + '">' +
       '<div class="lc-title">' + esc(t.title) + '</div>' +
       noteHTML(t) +
@@ -547,7 +664,7 @@ function renderCalWeek(){
   const days = weekDates(calSelDate);
   const counts = {};
   DB.todos.forEach(function(t){
-    if (t.date && !(UI.calHideDone && t.done)) counts[t.date] = (counts[t.date] || 0) + 1;
+    if (t.date && !(UI.hideDone && t.done)) counts[t.date] = (counts[t.date] || 0) + 1;
   });
   const today = todayISO();
   host.innerHTML = days.map(function(iso){
@@ -586,7 +703,7 @@ function renderCalendar(motion){
 
   const items = DB.todos
     .filter(t => t.date && t.date >= bounds.start && t.date <= bounds.end)
-    .filter(t => !(UI.calHideDone && t.done))
+    .filter(t => !(UI.hideDone && t.done))
     .sort(calOrder);
 
   $('#calCount').textContent = items.length;
@@ -613,7 +730,7 @@ function renderCalendar(motion){
   const emptyText = $('#calEmptyText');
   if (emptyText) {
     emptyText.textContent = (range === 'day' ? calDayName() : '这段时间') +
-      (UI.calHideDone ? '没有未完成的安排' : '没有安排');
+      (UI.hideDone ? '没有未完成的安排' : '没有安排');
   }
 }
 
@@ -663,17 +780,18 @@ function calItemHTML(t){
   if (t.note) meta.push('<span class="cr-note">' + esc(t.note) + '</span>');
   const sep = '<span class="cr-sep">·</span>';
 
-  return '<div class="cal-row' + (t.done ? ' is-done' : '') + '" data-id="' + t.id + '">' +
-    '<button class="cal-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
-      'style="--c:' + color + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
-      '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
-    '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
-      '<div class="cal-row-title">' +
-        (t.starred ? '<span class="cal-star" aria-label="已加星">' + svg('star') + '</span>' : '') +
-        '<span class="cal-text">' + esc(t.title) + '</span></div>' +
-      (meta.length ? '<div class="cal-row-meta">' + meta.join(sep) + '</div>' : '') +
-    '</div>' +
-  '</div>';
+  return swipeWrap(
+    '<div class="cal-row' + (t.done ? ' is-done' : '') + '" data-id="' + t.id + '">' +
+      '<button class="cal-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
+        'style="--c:' + ink(color) + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
+        '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
+      '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
+        '<div class="cal-row-title">' +
+          (t.starred ? '<span class="cal-star" aria-label="已加星">' + svg('star') + '</span>' : '') +
+          '<span class="cal-text">' + esc(t.title) + '</span></div>' +
+        (meta.length ? '<div class="cal-row-meta">' + meta.join(sep) + '</div>' : '') +
+      '</div>' +
+    '</div>', t.id, !!t.done);
 }
 
 /* ---------- 已完成 ---------- */
@@ -681,11 +799,12 @@ function renderDone(){
   const chips = [];
   const allOn = UI.doneList === 'all';
   chips.push('<button class="chip' + (allOn ? ' is-active' : '') + '" data-act="done-filter" data-id="all" ' +
-    'style="' + (allOn ? 'background:#0A84FF' : '') + '">' + svg('list') + '全部</button>');
+    'style="--c:#0A84FF;--c-ink:#0A84FF;--c-14:' + hexRgba('#0A84FF', .14) + '">' + svg('list') + '全部</button>');
   DB.lists.forEach(l => {
     const on = UI.doneList === l.id;
     chips.push('<button class="chip' + (on ? ' is-active' : '') + '" data-act="done-filter" data-id="' + l.id + '" ' +
-      'style="' + (on ? 'background:' + l.color : 'color:' + l.color) + '">' + svg(l.icon) + esc(l.name) + '</button>');
+      'style="--c:' + l.color + ';--c-ink:' + ink(l.color) + ';--c-14:' + hexRgba(l.color, .14) + '">' +
+      svg(l.icon) + esc(l.name) + '</button>');
   });
   $('#doneChips').innerHTML = chips.join('');
 
@@ -706,20 +825,21 @@ function renderDone(){
 
 function doneRowHTML(t){
   const list = findList(t.listId);
-  return '<div class="todo-row" data-todo="' + t.id + '">' +
-    '<button class="check is-done" data-act="toggle" data-id="' + t.id + '" aria-label="恢复为未完成">' +
-      '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
-    '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '" style="padding-top:2px">' +
-      '<div class="tr-meta" style="margin-top:0">' + svg('calendar') +
-        '<span>' + fmtDate(t.doneAt || t.date) + '</span></div>' +
-      '<div class="tr-title" style="margin-top:3px">' + esc(t.title) + '</div>' +
-      noteHTML(t, 'tr-note') +
-    '</div>' +
-    '<div class="tr-side is-done-side">' +
-      '<span class="tr-list-icon" style="color:var(--text2)">' +
-        svg(list ? list.icon : 'list') + '</span>' +
-      '<span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
-  '</div>';
+  return swipeWrap(
+    '<div class="todo-row" data-todo="' + t.id + '">' +
+      '<button class="check is-done" data-act="toggle" data-id="' + t.id + '" aria-label="恢复为未完成">' +
+        '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
+      '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '" style="padding-top:2px">' +
+        '<div class="tr-meta" style="margin-top:0">' + svg('calendar') +
+          '<span>' + fmtDate(t.doneAt || t.date) + '</span></div>' +
+        '<div class="tr-title" style="margin-top:3px">' + esc(t.title) + '</div>' +
+        noteHTML(t, 'tr-note') +
+      '</div>' +
+      '<div class="tr-side is-done-side">' +
+        '<span class="tr-list-icon" style="color:' + (list ? ink(list.color) : 'var(--text2)') + '">' +
+          svg(list ? list.icon : 'list') + '</span>' +
+        '<span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
+    '</div>', t.id, true);
 }
 
 /* ---------- 列表详情 ---------- */
@@ -727,7 +847,7 @@ function renderList(listId){
   const list = findList(listId);
   if (!list) { back(); return; }
   $('#listTitle').innerHTML =
-    '<span class="nt-icon" style="color:' + list.color + '">' + svg(list.icon) + '</span>' +
+    iconBadge(list.icon, list.color, 'is-nav') +
     '<span>' + esc(list.name) + '</span>';
 
   const open = sortedOpenTodos(listId);
@@ -735,28 +855,25 @@ function renderList(listId){
   $('#sortHint').hidden = !UI.sorting;
   const card = $('#listCard');
   card.classList.toggle('is-sorting', UI.sorting);
-  card.innerHTML = open.map((t, i) => listRowHTML(t, list, i, open.length)).join('');
+  card.innerHTML = open.map(t => listRowHTML(t, list)).join('');
   card.style.display = open.length ? 'block' : 'none';
   $('#listEmpty').hidden = open.length > 0;
 }
 
-function listRowHTML(t, list, i, total){
+function listRowHTML(t, list){
   const c = todoColor(t, list.color);
-  return '<div class="todo-row' + (UI.sorting ? ' is-sorting' : '') + '" data-todo="' + t.id + '">' +
-    '<button class="check" data-act="toggle" data-id="' + t.id + '" style="--c:' + c + '" aria-label="标记完成">' +
-      '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
-    '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '">' +
-      '<div class="tr-title">' + esc(t.title) + '</div>' +
-      noteHTML(t, 'tr-note') +
-      progressHTML(t, c) +
-      metaHTML(t, 'tr-meta') +
-      '<div class="tr-tools">' +
-        '<button class="mini-btn" data-act="up" data-id="' + t.id + '"' + (i === 0 ? ' disabled' : '') + '>' + svg('arrowUp') + '</button>' +
-        '<button class="mini-btn" data-act="down" data-id="' + t.id + '"' + (i === total - 1 ? ' disabled' : '') + '>' + svg('arrowDown') + '</button>' +
+  return swipeWrap(
+    '<div class="todo-row' + (UI.sorting ? ' is-sorting' : '') + '" data-todo="' + t.id + '">' +
+      '<button class="check" data-act="toggle" data-id="' + t.id + '" style="--c:' + ink(c) + '" aria-label="标记完成">' +
+        '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
+      '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '">' +
+        '<div class="tr-title">' + esc(t.title) + '</div>' +
+        noteHTML(t, 'tr-note') +
+        progressHTML(t, c) +
+        metaHTML(t, 'tr-meta') +
       '</div>' +
-    '</div>' +
-    starHTML(t) +
-  '</div>';
+      starHTML(t) +
+    '</div>', t.id, false);
 }
 
 /* ============================================================
@@ -767,6 +884,11 @@ function grab(){ return '<div class="sheet-grab"></div>'; }
 function renderSheet(p){
   const host = $('#sheetHost');
   const sheet = $('#sheet');
+  // 取消可能进行中的退场动画
+  if (sheetCloseTimer) { clearTimeout(sheetCloseTimer); sheetCloseTimer = null; }
+  const mask = $('#sheetMask');
+  if (mask) mask.classList.remove('is-closing');
+  sheet.classList.remove('is-closing');
   host.hidden = false;
 
   if (p.kind === 'todo' && (!SHEET || SHEET._t !== p._t)) {
@@ -795,6 +917,7 @@ function renderSheet(p){
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
+  else if (p.kind === 'confirm') sheet.innerHTML = confirmSheetHTML(p);
 
   // 新建待办时自动聚焦标题（每次打开只聚焦一次）
   if (p.kind === 'todo' && p._t !== focusToken) {
@@ -809,11 +932,50 @@ function renderSheet(p){
 }
 let focusToken = null;
 
+let sheetCloseTimer = null;
 function hideSheet(){
-  $('#sheetHost').hidden = true;
-  $('#sheet').innerHTML = '';
+  const host = $('#sheetHost');
   SHEET = null;
   DTP = null;
+  UI.editing = false;   // 编辑模式是临时状态，关闭面板即退出
+  if (host.hidden) return;
+  const sheet = $('#sheet');
+  const mask = $('#sheetMask');
+  sheet.classList.add('is-closing');
+  if (mask) mask.classList.add('is-closing');
+  if (sheetCloseTimer) clearTimeout(sheetCloseTimer);
+  sheetCloseTimer = setTimeout(function(){
+    sheetCloseTimer = null;
+    host.hidden = true;
+    sheet.innerHTML = '';
+    sheet.className = 'sheet';
+    if (mask) mask.classList.remove('is-closing');
+  }, 220);
+}
+
+/* ---------- 破坏性操作确认（替代原生 confirm） ---------- */
+function confirmAction(opts){
+  push('sheet', {
+    kind: 'confirm',
+    title: opts.title || '确认',
+    message: opts.message || '',
+    confirmText: opts.confirmText || '删除',
+    onOk: opts.onOk || null
+  });
+}
+
+function confirmSheetHTML(p){
+  return grab() +
+    '<div class="sheet-head">' +
+      '<h2 class="sheet-title">' + esc(p.title) + '</h2>' +
+    '</div>' +
+    '<div class="sheet-body">' +
+      (p.message ? '<p class="confirm-msg">' + esc(p.message) + '</p>' : '') +
+      '<div class="confirm-actions">' +
+        '<button class="danger-solid" data-act="confirm-ok">' + esc(p.confirmText) + '</button>' +
+        '<button class="ghost-btn" data-act="close-sheet">取消</button>' +
+      '</div>' +
+    '</div>';
 }
 
 /* ---------- 设置面板 ---------- */
@@ -837,23 +999,25 @@ function settingsHTML(){
     '<div class="sheet-body">' +
       '<div class="group"><div class="group-head"><span>管理</span></div>' +
         '<div class="group-card">' +
-          '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
-            '<span>' + (UI.editing ? '完成编辑' : '编辑列表') + '</span></button>' +
           '<button class="menu-item" data-act="toggle-hide-empty">' + svg('list') +
             '<span>隐藏空列表</span>' +
             '<span class="switch' + (UI.hideEmpty ? ' is-on' : '') + '"></span></button>' +
-          '<button class="menu-item" data-act="toggle-cal-done">' + svg('checkCircle') +
-            '<span>日历隐藏已完成</span>' +
-            '<span class="switch' + (UI.calHideDone ? ' is-on' : '') + '"></span></button>' +
+          '<button class="menu-item" data-act="toggle-hide-done">' + svg('checkCircle') +
+            '<span>隐藏已完成</span>' +
+            '<span class="switch' + (UI.hideDone ? ' is-on' : '') + '"></span></button>' +
         '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
-        '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button></div>' +
+        '<div class="group-actions">' +
+          '<button class="group-text' + (UI.editing ? ' is-active' : '') + '" data-act="toggle-edit">' +
+            (UI.editing ? '完成' : '编辑') + '</button>' +
+          '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button>' +
+        '</div></div>' +
         '<div class="group-card" data-reorder="list">' + listRows + '</div></div>' +
       '<div class="group"><div class="group-head"><span>数据</span></div>' +
         '<div class="group-card">' +
-          '<button class="menu-item" data-act="load-demo">' + svg('bulb') + '<span>加载示例数据</span></button>' +
-          '<button class="menu-item" data-act="export">' + svg('download') + '<span>导出 JSON</span></button>' +
-          '<button class="menu-item" data-act="import">' + svg('upload') + '<span>导入 JSON</span></button>' +
+          '<button class="menu-item" data-act="load-demo">' + svg('bulb') + '<span>示例数据</span></button>' +
+          '<button class="menu-item" data-act="export">' + svg('download') + '<span>导出数据</span></button>' +
+          '<button class="menu-item" data-act="import">' + svg('upload') + '<span>从文件导入</span></button>' +
           '<button class="menu-item is-danger" data-act="reset-all">' + svg('trash') + '<span>清空所有数据</span></button>' +
         '</div></div>' +
     '</div>';
@@ -920,11 +1084,11 @@ function todoSheetHTML(p){
       '<textarea class="note-field" id="todoNote" placeholder="补充说明、链接或参考…" maxlength="500">' + esc(f.note) + '</textarea>' +
       '<div class="field-label">日期</div>' +
       '<div id="dateRowHost">' + dateRowHTML() + '</div>' +
-      '<div class="field-label">加星</div>' +
+      '<div class="field-label">旗标</div>' +
       '<div class="form-card"><button class="form-row star-row' + (f.starred ? ' is-on' : '') + '" data-act="toggle-star" ' +
         'role="switch" aria-checked="' + (f.starred ? 'true' : 'false') + '">' +
         svg('star', 'ri') +
-        '<span class="lbl">是否置顶</span>' +
+        '<span class="lbl">标记为旗标</span>' +
         '<span class="switch' + (f.starred ? ' is-on' : '') + '"></span></button></div>' +
       '<div class="field-label">进度</div>' +
       '<div class="form-card"><div class="progress-edit">' +
@@ -937,6 +1101,7 @@ function todoSheetHTML(p){
         '<button class="ghost-btn" data-act="close-sheet">取消</button>' +
         '<button class="primary-btn" data-act="todo-save">' + (isNew ? '保存' : '保存修改') + '</button>' +
       '</div>' +
+      (isNew ? '' : '<button class="danger-btn" data-act="todo-remove" data-id="' + SHEET.todoId + '">删除待办</button>') +
       '<div class="dp-host" id="dpHost"></div>' +
     '</div>';
 }
@@ -945,7 +1110,7 @@ function todoSheetHTML(p){
 function dateRowHTML(){
   const f = SHEET.form;
   const dateVal = f.date || '';
-  const text = dateVal ? (fmtDate(dateVal) + (f.time ? ' ' + f.time : '')) : '未设置，点击选择';
+  const text = dateVal ? (fmtDate(dateVal) + (f.time ? ' ' + f.time : '')) : '添加日期与时间';
   return '<div class="form-card"><div class="form-row date-row">' + svg('calendar', 'ri') +
     '<button class="date-cell-btn" data-act="open-date">' +
       '<span class="date-value' + (dateVal ? '' : ' is-empty') + '">' + esc(text) + '</span>' +
@@ -975,7 +1140,10 @@ function openDatePicker(){
     mm: f.time ? parts[1] : ''
   };
   const host = $('#dpHost');
-  if (host) host.innerHTML = datePickerHTML();
+  if (host) {
+    host.innerHTML = datePickerHTML();
+    syncWheels();
+  }
 }
 
 function closeDatePicker(){
@@ -986,7 +1154,10 @@ function closeDatePicker(){
 
 function dpRefresh(){
   const host = $('#dpHost');
-  if (host) host.innerHTML = datePickerHTML();
+  if (host) {
+    host.innerHTML = datePickerHTML();
+    syncWheels();
+  }
 }
 
 function datePickerHTML(){
@@ -1005,15 +1176,15 @@ function datePickerHTML(){
   }
   while (cells.length % 7 !== 0) cells.push('<span class="dp-cell is-out"></span>');
 
-  const hours = ['<option value="">--</option>'];
+  const hourItems = ['<button class="dp-wheel-item" data-act="dp-wheel-pick" data-wheel="hh" data-v="">--</button>'];
   for (let h = 0; h < 24; h++) {
     const v = pad2(h);
-    hours.push('<option value="' + v + '"' + (DTP.hh === v ? ' selected' : '') + '>' + v + '</option>');
+    hourItems.push('<button class="dp-wheel-item" data-act="dp-wheel-pick" data-wheel="hh" data-v="' + v + '">' + v + '</button>');
   }
-  const mins = ['<option value="">--</option>'];
+  const minItems = ['<button class="dp-wheel-item" data-act="dp-wheel-pick" data-wheel="mm" data-v="">--</button>'];
   for (let i = 0; i < 60; i += 5) {
     const v = pad2(i);
-    mins.push('<option value="' + v + '"' + (DTP.mm === v ? ' selected' : '') + '>' + v + '</option>');
+    minItems.push('<button class="dp-wheel-item" data-act="dp-wheel-pick" data-wheel="mm" data-v="' + v + '">' + v + '</button>');
   }
 
   return '<div class="dp-mask" data-act="dp-cancel"></div>' +
@@ -1026,10 +1197,12 @@ function datePickerHTML(){
       '<div class="dp-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>' +
       '<div class="dp-grid">' + cells.join('') + '</div>' +
       '<div class="dp-time">' +
-        '<span class="dp-time-lbl">时分</span>' +
-        '<select class="dp-select" id="dpHour">' + hours.join('') + '</select>' +
-        '<span class="dp-colon">:</span>' +
-        '<select class="dp-select" id="dpMin">' + mins.join('') + '</select>' +
+        '<div class="dp-time-head"><span>时间</span><span>' + (DTP.hh || DTP.mm ? '已设置' : '可选') + '</span></div>' +
+        '<div class="dp-wheels">' +
+          '<div class="dp-wheel" id="dpWheelHour"><div class="dp-wheel-pad"></div>' + hourItems.join('') + '<div class="dp-wheel-pad"></div></div>' +
+          '<span class="dp-wheel-sep">:</span>' +
+          '<div class="dp-wheel" id="dpWheelMin"><div class="dp-wheel-pad"></div>' + minItems.join('') + '<div class="dp-wheel-pad"></div></div>' +
+        '</div>' +
       '</div>' +
       '<div class="dp-actions">' +
         '<button class="ghost-btn" data-act="dp-cancel">取消</button>' +
@@ -1038,13 +1211,32 @@ function datePickerHTML(){
     '</div>';
 }
 
+/* 时间滚轮：46px 一格，滚到哪格就是哪个值 */
+const WHEEL_H = 46;
+function syncWheels(){
+  if (!DTP) return;
+  const wh = $('#dpWheelHour'), wm = $('#dpWheelMin');
+  if (wh) wh.scrollTop = (DTP.hh === '' ? 0 : (parseInt(DTP.hh, 10) + 1)) * WHEEL_H;
+  if (wm) wm.scrollTop = (DTP.mm === '' ? 0 : (Math.round(parseInt(DTP.mm, 10) / 5) + 1)) * WHEEL_H;
+}
+function wheelToDTP(el){
+  if (!DTP || !el) return;
+  const idx = Math.round(el.scrollTop / WHEEL_H);
+  if (el.id === 'dpWheelHour') {
+    DTP.hh = idx <= 0 ? '' : pad2(Math.min(23, idx - 1));
+  } else {
+    const v = idx <= 0 ? '' : Math.min(55, (idx - 1) * 5);
+    DTP.mm = v === '' ? '' : pad2(v);
+  }
+}
+
 function listPickerHTML(){
   const f = SHEET.form;
   if (!DB.lists.length) return '<span style="font-size:13px;color:#8E8E93">还没有列表，请先在设置中新建</span>';
   return DB.lists.map(l => {
     const on = f.listId === l.id;
     return '<button class="pick-chip' + (on ? ' is-on' : '') + '" data-act="pick-list" data-id="' + l.id + '" ' +
-      'style="' + (on ? 'background:' + l.color + ';color:#fff' : 'color:' + l.color) + '">' +
+      'style="--c:' + l.color + ';--c-ink:' + ink(l.color) + ';--c-14:' + hexRgba(l.color, .14) + '">' +
       svg(l.icon) + esc(l.name) + '</button>';
   }).join('');
 }
@@ -1118,7 +1310,7 @@ function renderEditList(p){
     '<div class="icon-group-label">' + g.label + '</div>' +
     '<div class="icon-grid">' + g.items.map(name =>
       '<button class="icon-cell' + (EDIT.icon === name ? ' is-active' : '') + '" ' +
-      'data-act="pick-icon" data-icon="' + name + '" style="--c:' + EDIT.color + ';--c-12:' + hexRgba(EDIT.color, .12) + '" ' +
+      'data-act="pick-icon" data-icon="' + name + '" style="--c:' + EDIT.color + ';--c-ink:' + ink(EDIT.color) + '" ' +
       'aria-label="' + name + '">' + svg(name) + '</button>').join('') + '</div>'
   ).join('');
 
@@ -1129,7 +1321,7 @@ function renderEditList(p){
 
   $('#editListBody').innerHTML =
     '<div class="name-card">' +
-      '<span class="icon-preview" style="--c:' + EDIT.color + ';--c-12:' + hexRgba(EDIT.color, .12) + '">' + svg(EDIT.icon) + '</span>' +
+      '<span class="icon-badge is-lg" style="--c:' + EDIT.color + '">' + svg(EDIT.icon) + '</span>' +
       '<div class="name-field-wrap">' +
         '<input class="name-field" id="listName" placeholder="列表名称" maxlength="20" value="' + esc(EDIT.name) + '" />' +
         (EDIT.name ? '<button class="clear-btn" data-act="clear-name" aria-label="清空"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.4 8.4l7.2 7.2M15.6 8.4l-7.2 7.2" stroke="#F2F2F6" stroke-width="2" fill="none"/></svg></button>' : '') +
@@ -1151,6 +1343,7 @@ function toggleTodo(id){
   t.done = !t.done;
   t.doneAt = t.done ? todayISO() : '';
   if (t.done) t.progress = 100;
+  haptic(12);
   save();
 
   // 日历里勾选后先就地播放完成动效，稍后再重排，避免条目立刻跳走
@@ -1160,12 +1353,23 @@ function toggleTodo(id){
     if (row) row.classList.toggle('is-done', !!t.done);
     if (check) check.classList.toggle('is-done', !!t.done);
     // 开启「隐藏已完成」时，先淡出再重排
-    if (row && t.done && UI.calHideDone) {
+    if (row && t.done && UI.hideDone) {
       setTimeout(function(){ if (row.isConnected) row.classList.add('is-removing'); }, 150);
     }
     setTimeout(function(){
       if (UI.tab === 'calendar' && current().name === 'root') renderCalendar();
     }, 320);
+    return;
+  }
+
+  // 列表里完成：先就地播动效，再重排
+  const row = $('.view.is-active .todo-row[data-todo="' + id + '"]');
+  if (row && UI.tab !== 'done' && current().name === 'list' && t.done) {
+    row.querySelector('.check').classList.add('is-done');
+    row.querySelector('.tr-title').classList.add('is-done');
+    setTimeout(function(){
+      if (current().name === 'list') renderApp();
+    }, 280);
     return;
   }
   renderApp();
@@ -1184,21 +1388,32 @@ function moveTodoWithinList(listId, from, to){
 function deleteTodo(id){
   const i = DB.todos.findIndex(t => t.id === id);
   if (i < 0) return;
+  const backup = DB.todos[i];
   DB.todos.splice(i, 1);
+  haptic(16);
   save(); renderApp();
-  toast('已删除');
+  toast('已删除', '撤销', function(){
+    DB.todos.splice(Math.min(i, DB.todos.length), 0, backup);
+    save(); renderApp();
+  });
 }
 function deleteList(id){
   const list = findList(id);
   if (!list) return;
   const n = DB.todos.filter(t => t.listId === id).length;
-  const msg = '删除列表「' + list.name + '」？' + (n ? '其中 ' + n + ' 条待办会一并删除。' : '');
-  if (!window.confirm(msg)) return;
-  DB.lists = DB.lists.filter(l => l.id !== id);
-  DB.todos = DB.todos.filter(t => t.listId !== id);
-  if (UI.doneList === id) UI.doneList = 'all';
-  save(); renderApp();
-  toast('列表已删除');
+  confirmAction({
+    title: '删除列表',
+    message: '「' + list.name + '」' + (n ? '及其中的 ' + n + ' 条待办' : '') + '将被删除，此操作不可撤销。',
+    confirmText: '删除',
+    onOk: function(){
+      DB.lists = DB.lists.filter(l => l.id !== id);
+      DB.todos = DB.todos.filter(t => t.listId !== id);
+      if (UI.doneList === id) UI.doneList = 'all';
+      save();
+      if (current().name === 'editList') { EDIT = null; back(); }
+      else renderApp();
+    }
+  });
 }
 
 /* ============================================================
@@ -1206,6 +1421,9 @@ function deleteList(id){
    ============================================================ */
 document.addEventListener('click', function(e){
   if (Date.now() < suppressClickUntil) { e.stopPropagation(); e.preventDefault(); return; }
+  // 已滑开的行：先收起，不触发行内点击
+  const openSwipe = e.target.closest('.swipe.is-open');
+  if (openSwipe && !e.target.closest('.swipe-btn')) { closeSwipes(); return; }
   const el = e.target.closest('[data-act]');
   if (!el) return;
   const act = el.dataset.act;
@@ -1214,6 +1432,25 @@ document.addEventListener('click', function(e){
   switch (act) {
     /* 导航 */
     case 'back': back(); break;
+    case 'toast-undo': {
+      const fn = toastAction;
+      toastAction = null;
+      $('#toast').classList.remove('show');
+      if (fn) fn();
+      break;
+    }
+
+    /* 长按菜单 */
+    case 'ctx-close': closeContextMenu(); break;
+    case 'ctx-toggle': closeContextMenu(); toggleTodo(id); break;
+    case 'ctx-star': {
+      const t = findTodo(id);
+      if (t) { t.starred = !t.starred; save(); haptic(10); renderApp(); }
+      closeContextMenu();
+      break;
+    }
+    case 'ctx-edit': closeContextMenu(); openTodoSheet(id); break;
+    case 'ctx-del': closeContextMenu(); deleteTodo(id); break;
     case 'open-list':
       UI.sorting = false;
       push('list', { listId: id });
@@ -1223,22 +1460,23 @@ document.addEventListener('click', function(e){
     case 'add-todo': openTodoSheet(null, el.dataset.list); break;
     case 'edit-todo':
       if (UI.sorting) break;
-      openTodoView(id); break;
+      openTodoSheet(id); break;
     case 'toggle': toggleTodo(id); break;
-    case 'up': {
-      const lid = id ? (findTodo(id) || {}).listId : '';
-      const items = openTodos(lid);
-      const idx = items.findIndex(t => t.id === id);
-      if (idx > 0) { moveTodoWithinList(lid, idx, idx - 1); save(); renderApp(); }
+    case 'clear-search': {
+      UI.query = '';
+      const input = $('#homeSearch');
+      if (input) input.value = '';
+      renderHome();
       break;
     }
-    case 'down': {
-      const lid = id ? (findTodo(id) || {}).listId : '';
-      const items = openTodos(lid);
-      const idx = items.findIndex(t => t.id === id);
-      if (idx >= 0 && idx < items.length - 1) { moveTodoWithinList(lid, idx, idx + 1); save(); renderApp(); }
+    case 'swipe-toggle':
+      closeSwipes();
+      toggleTodo(id);
       break;
-    }
+    case 'swipe-del':
+      closeSwipes();
+      deleteTodo(id);
+      break;
 
     /* Tab */
     case 'done-filter':
@@ -1249,10 +1487,9 @@ document.addEventListener('click', function(e){
     /* 设置面板 */
     case 'toggle-edit': {
       UI.editing = !UI.editing;
+      haptic(8);
       renderSheet({ kind:'settings' });
-      // 进入编辑后回到顶部，避免看不到列表行上出现的删除 / 拖拽按钮
-      const body = $('#sheet .sheet-body');
-      if (body) body.scrollTop = 0;
+      // 编辑状态出现在「我的列表」分组里，保持当前滚动位置
       break;
     }
     case 'smart':
@@ -1264,12 +1501,14 @@ document.addEventListener('click', function(e){
     case 'new-list': EDIT = null; push('editList', { isNew:true }); break;
     case 'open-edit-list': EDIT = null; push('editList', { listId:id }); break;
     case 'del-list': deleteList(id); break;
-    case 'toggle-hide-empty':
+    case 'toggle-hide-empty': {
       UI.hideEmpty = !UI.hideEmpty;
       saveUI();
-      renderSheet({ kind:'settings' });
+      const sw = el.querySelector('.switch');
+      if (sw) sw.classList.toggle('is-on', UI.hideEmpty);
       renderHome();
       break;
+    }
     case 'export': exportJSON(); break;
     case 'import': pickFile(); break;
     case 'load-demo': loadDemo(); break;
@@ -1300,6 +1539,7 @@ document.addEventListener('click', function(e){
     case 'toggle-star':
       if (!SHEET || !SHEET.form) break;
       SHEET.form.starred = !SHEET.form.starred;
+      haptic(8);
       renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
       break;
 
@@ -1314,6 +1554,13 @@ document.addEventListener('click', function(e){
     case 'dp-day':
       if (DTP) { DTP.date = el.dataset.date || ''; dpRefresh(); }
       break;
+    case 'dp-wheel-pick': {
+      if (!DTP) break;
+      const v = el.dataset.v || '';
+      if (el.dataset.wheel === 'hh') DTP.hh = v; else DTP.mm = v;
+      syncWheels();
+      break;
+    }
     case 'dp-cancel': closeDatePicker(); break;
     case 'dp-confirm':
       if (!DTP || !SHEET || !SHEET.form) break;
@@ -1337,10 +1584,18 @@ document.addEventListener('click', function(e){
     case 'todo-remove': {
       const todo = findTodo(id);
       if (!todo) break;
-      if (!window.confirm('删除待办「' + todo.title + '」？')) break;
       SHEET = null;
       back();
       setTimeout(function(){ deleteTodo(id); }, 30);
+      break;
+    }
+    case 'confirm-ok': {
+      const cur = current();
+      const opts = (cur && cur.name === 'sheet' && cur.params.kind === 'confirm') ? cur.params : null;
+      if (!opts) break;
+      SHEET = null;
+      back();
+      if (opts.onOk) setTimeout(opts.onOk, 40);
       break;
     }
 
@@ -1350,9 +1605,15 @@ document.addEventListener('click', function(e){
     case 'menu-clear-done': {
       const n = DB.todos.filter(t => t.listId === id && t.done).length;
       if (!n) { toast('该列表没有已完成的待办'); break; }
-      if (!window.confirm('清除 ' + n + ' 条已完成待办？')) break;
-      DB.todos = DB.todos.filter(t => !(t.listId === id && t.done));
-      save(); back(); setTimeout(renderApp, 20); toast('已清除 ' + n + ' 条');
+      confirmAction({
+        title: '清除已完成',
+        message: '将删除 ' + n + ' 条已完成待办，此操作不可撤销。',
+        confirmText: '清除',
+        onOk: function(){
+          DB.todos = DB.todos.filter(t => !(t.listId === id && t.done));
+          save(); back(); setTimeout(renderApp, 20);
+        }
+      });
       break;
     }
     case 'menu-del-list': deleteList(id); break;
@@ -1367,9 +1628,20 @@ document.addEventListener('click', function(e){
       renderCalendar({ dir: 0 });
       break;
     }
+    case 'cal-shift': {
+      const step = Number(el.dataset.step) || 1;
+      const d = parseISO(calSelDate);
+      if (UI.calRange === 'month') d.setMonth(d.getMonth() + step);
+      else d.setDate(d.getDate() + (UI.calRange === 'week' ? 7 : 1) * step);
+      calSelDate = toISO(d);
+      haptic(8);
+      renderCalendar({ dir: step });
+      break;
+    }
     case 'cal-pick-day':
       // 周条只移动日期指针，不改变范围
       calSelDate = el.dataset.date || todayISO();
+      haptic(8);
       renderCalendar({ dir: 0 });
       scrollToCalDay(calSelDate);
       break;
@@ -1384,12 +1656,14 @@ document.addEventListener('click', function(e){
       if (!DB.lists.length) { EDIT = null; push('editList', { isNew:true }); break; }
       openTodoSheet(null, null, { date: calSelDate });
       break;
-    case 'toggle-cal-done': {
-      UI.calHideDone = !UI.calHideDone;
+    case 'toggle-hide-done': {
+      UI.hideDone = !UI.hideDone;
       saveUI();
+      haptic(8);
       // 就地切换开关外观（设置面板不保存 SHEET 状态，整块重绘会看不到变化）
       const sw = el.querySelector('.switch');
-      if (sw) sw.classList.toggle('is-on', UI.calHideDone);
+      if (sw) sw.classList.toggle('is-on', UI.hideDone);
+      renderHome();
       renderCalendar();
       break;
     }
@@ -1417,12 +1691,14 @@ document.addEventListener('input', function(e){
   }
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
 });
-document.addEventListener('change', function(e){
+/* 时间滚轮滚动 → 同步选中值 */
+document.addEventListener('scroll', function(e){
   const el = e.target;
-  if (!DTP) return;
-  if (el.id === 'dpHour') { DTP.hh = el.value; return; }
-  if (el.id === 'dpMin') { DTP.mm = el.value; return; }
-});
+  if (!DTP || !el || !el.classList || !el.classList.contains('dp-wheel')) return;
+  wheelToDTP(el);
+  const head = $('#dpHost .dp-time-head span:last-child');
+  if (head) head.textContent = '已设置';
+}, true);
 
 /* ============================================================
    14. 待办表单动作
@@ -1436,7 +1712,7 @@ function openTodoView(todoId){
   if (!findTodo(todoId)) return;
   push('sheet', { kind:'todoView', todoId: todoId, _t: uid() });
 }
-function saveTodoSheet(){
+function saveTodoSheet(opts){
   if (!SHEET) return;
   const f = SHEET.form;
   const title = String(f.title || '').trim();
@@ -1448,7 +1724,8 @@ function saveTodoSheet(){
   const date = f.date;
   const time = f.time || '';
   const starred = !!f.starred;
-  if (SHEET.todoId) {
+  const isNew = !SHEET.todoId;
+  if (!isNew) {
     const t = findTodo(SHEET.todoId);
     if (t) {
       t.title = title; t.note = note; t.progress = progress;
@@ -1462,10 +1739,21 @@ function saveTodoSheet(){
     });
   }
   save();
-  const addAnother = SHEET && !SHEET.todoId;
+  haptic(10);
+
+  // 回车连续添加：保留面板与日期，清空内容继续写
+  if (isNew && opts && opts.keepOpen) {
+    SHEET.form = { title:'', note:'', progress:0, date: date, time: time, listId: listId, starred: false };
+    renderSheet({ kind:'todo', _t: SHEET._t, todoId: null });
+    const el = $('#todoTitle');
+    if (el) { el.value = ''; try { el.focus({ preventScroll:true }); } catch (e) { el.focus(); } }
+    const body = $('#sheet .sheet-body');
+    if (body) body.scrollTop = 0;
+    return;
+  }
+
   SHEET = null;
   back();
-  toast(addAnother ? '已添加' : '已保存');
 }
 
 /* ============================================================
@@ -1733,16 +2021,31 @@ function applyImport(mode){
 function loadDemo(){
   const demo = seed();
   const hasData = DB.lists.length > 0 || DB.todos.length > 0;
-  if (hasData && !window.confirm('加载示例数据会追加到现有内容中，继续吗？')) return;
-  if (hasData) mergeDataset(demo);
-  else DB = demo;
-  save();
-  renderApp();
-  toast('已加载示例数据');
+  const apply = function(){
+    if (hasData) mergeDataset(demo);
+    else DB = demo;
+    save();
+    renderApp();
+  };
+  if (!hasData) { apply(); return; }
+  confirmAction({
+    title: '示例数据',
+    message: '示例列表与待办会追加到现有内容中。',
+    confirmText: '继续',
+    onOk: apply
+  });
 }
 
 function resetAll(){
-  if (!window.confirm('清空所有列表和待办？该操作不可恢复，建议先导出备份。')) return;
+  confirmAction({
+    title: '清空所有数据',
+    message: '所有列表与待办都会被删除，且无法恢复。建议先备份。',
+    confirmText: '清空',
+    onOk: resetAllNow
+  });
+}
+
+function resetAllNow(){
   DB = { version:2, lists:[], tags:[], todos:[] };
   UI.doneList = 'all';
   UI.doneYear = 'all';
@@ -1752,6 +2055,185 @@ function resetAll(){
   back();
   setTimeout(renderApp, 20);
   toast('已清空所有数据');
+}
+
+/* ============================================================
+   17.5 手势：滑动操作 / 长按菜单 / Sheet 下拉关闭
+   ============================================================ */
+const SWIPE_OPEN = 92;
+let swipeState = null;
+let lpTimer = null, lpInfo = null;
+
+function closeSwipes(except){
+  $$('.swipe.is-open').forEach(function(w){
+    if (w === except) return;
+    w.classList.remove('is-open', 'is-left', 'is-right');
+  });
+}
+function closeContextMenu(){
+  const host = $('.ctx-host');
+  if (host) host.remove();
+}
+
+/* 横向滑动：右滑完成、左滑删除 */
+document.addEventListener('pointerdown', function(e){
+  if (Date.now() < suppressClickUntil) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+  if (e.target.closest('.sheet-grab')) { startSheetDrag(e); return; }
+  if (e.target.closest('.swipe-btn')) return;
+
+  const body = e.target.closest('.swipe-body');
+  if (!body) { closeSwipes(); return; }
+  if (e.target.closest('button')) return;
+  if ($('#listCard') && $('#listCard').classList.contains('is-sorting')) return;
+
+  const wrap = body.parentElement;
+  const opened = wrap.classList.contains('is-open');
+  swipeState = {
+    wrap: wrap, body: body,
+    x: e.clientX, y: e.clientY,
+    base: opened ? (wrap.classList.contains('is-left') ? SWIPE_OPEN : -SWIPE_OPEN) : 0,
+    dx: 0, axis: null
+  };
+  body.addEventListener('pointermove', onSwipeMove);
+  body.addEventListener('pointerup', onSwipeEnd);
+  body.addEventListener('pointercancel', onSwipeEnd);
+});
+
+function onSwipeMove(e){
+  const st = swipeState;
+  if (!st) return;
+  const dx = e.clientX - st.x, dy = e.clientY - st.y;
+  if (!st.axis) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    st.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (st.axis === 'x') {
+      st.wrap.classList.add('is-dragging');
+      closeSwipes(st.wrap);
+      suppressClickUntil = Date.now() + 400;
+      haptic(6);
+    } else {
+      return;
+    }
+  }
+  if (st.axis !== 'x') return;
+  e.preventDefault();
+  st.dx = dx;
+  const v = Math.max(-SWIPE_OPEN - 14, Math.min(SWIPE_OPEN + 14, st.base + dx));
+  st.body.style.transform = 'translateX(' + v + 'px)';
+}
+
+function onSwipeEnd(){
+  const st = swipeState;
+  if (!st) return;
+  st.body.removeEventListener('pointermove', onSwipeMove);
+  st.body.removeEventListener('pointerup', onSwipeEnd);
+  st.body.removeEventListener('pointercancel', onSwipeEnd);
+  st.wrap.classList.remove('is-dragging');
+  st.body.style.transform = '';
+  if (st.axis === 'x') {
+    const v = st.base + st.dx;
+    st.wrap.classList.remove('is-open', 'is-left', 'is-right');
+    if (v <= -SWIPE_OPEN / 2) st.wrap.classList.add('is-open', 'is-right');
+    else if (v >= SWIPE_OPEN / 2) st.wrap.classList.add('is-open', 'is-left');
+    if (st.wrap.classList.contains('is-open')) haptic(10);
+    suppressClickUntil = Date.now() + 320;
+  }
+  swipeState = null;
+}
+
+/* 长按上下文菜单 */
+document.addEventListener('pointerdown', function(e){
+  if (Date.now() < suppressClickUntil) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const row = e.target.closest('.cal-row, .todo-row');
+  if (!row || e.target.closest('button')) return;
+  if ($('#listCard') && $('#listCard').classList.contains('is-sorting')) return;
+  const id = row.dataset.id || row.dataset.todo;
+  if (!id) return;
+  lpInfo = { id: id, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
+  clearTimeout(lpTimer);
+  lpTimer = setTimeout(function(){
+    if (!lpInfo) return;
+    openContextMenu(lpInfo.id, lpInfo.x, lpInfo.y);
+    lpInfo = null;
+  }, 460);
+}, true);
+
+document.addEventListener('pointermove', function(e){
+  if (!lpInfo) return;
+  if (Math.abs(e.clientX - lpInfo.sx) > 10 || Math.abs(e.clientY - lpInfo.sy) > 10) {
+    clearTimeout(lpTimer);
+    lpInfo = null;
+  }
+}, true);
+
+document.addEventListener('pointerup', function(){
+  clearTimeout(lpTimer);
+  lpInfo = null;
+}, true);
+
+function openContextMenu(id, x, y){
+  const t = findTodo(id);
+  if (!t) return;
+  closeContextMenu();
+  haptic(14);
+  suppressClickUntil = Date.now() + 360;
+  const app = $('#app');
+  if (!app) return;
+  const rect = app.getBoundingClientRect();
+  const host = document.createElement('div');
+  host.className = 'ctx-host';
+  host.innerHTML =
+    '<div class="ctx-backdrop" data-act="ctx-close"></div>' +
+    '<div class="ctx-menu">' +
+      '<button class="ctx-item" data-act="ctx-toggle" data-id="' + id + '">' +
+        svg(t.done ? 'undo' : 'check') + '<span>' + (t.done ? '恢复为未完成' : '标记完成') + '</span></button>' +
+      '<button class="ctx-item" data-act="ctx-star" data-id="' + id + '">' + svg('star') +
+        '<span>' + (t.starred ? '取消旗标' : '标记为旗标') + '</span></button>' +
+      '<button class="ctx-item" data-act="ctx-edit" data-id="' + id + '">' + svg('pen') + '<span>编辑</span></button>' +
+      '<button class="ctx-item is-danger" data-act="ctx-del" data-id="' + id + '">' + svg('trash') + '<span>删除</span></button>' +
+    '</div>';
+  app.appendChild(host);
+  const menu = host.querySelector('.ctx-menu');
+  const mw = menu.offsetWidth || 196, mh = menu.offsetHeight || 200;
+  const left = Math.min(Math.max(10, x - rect.left - mw / 2), Math.max(10, rect.width - mw - 10));
+  const top = Math.min(Math.max(10, y - rect.top - mh / 2), Math.max(10, rect.height - mh - 10));
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+
+/* Sheet 抓手下拉关闭 */
+let sheetDrag = null;
+function startSheetDrag(e){
+  const sheet = $('#sheet');
+  if (!sheet) return;
+  sheetDrag = { y: e.clientY, dy: 0, sheet: sheet, mask: $('#sheetMask') };
+  sheet.style.transition = 'none';
+  try { sheet.setPointerCapture(e.pointerId); } catch (err) {}
+  sheet.addEventListener('pointermove', onSheetDrag);
+  sheet.addEventListener('pointerup', onSheetEnd);
+  sheet.addEventListener('pointercancel', onSheetEnd);
+}
+function onSheetDrag(e){
+  if (!sheetDrag) return;
+  const dy = Math.max(0, e.clientY - sheetDrag.y);
+  sheetDrag.dy = dy;
+  sheetDrag.sheet.style.transform = 'translateY(' + dy + 'px)';
+  if (sheetDrag.mask) sheetDrag.mask.style.opacity = String(Math.max(0, 1 - dy / 320));
+}
+function onSheetEnd(){
+  if (!sheetDrag) return;
+  const st = sheetDrag;
+  st.sheet.removeEventListener('pointermove', onSheetDrag);
+  st.sheet.removeEventListener('pointerup', onSheetEnd);
+  st.sheet.removeEventListener('pointercancel', onSheetEnd);
+  st.sheet.style.transition = '';
+  st.sheet.style.transform = '';
+  if (st.mask) st.mask.style.opacity = '';
+  sheetDrag = null;
+  if (st.dy > 88) { haptic(10); back(); }
 }
 
 /* ============================================================
@@ -1814,6 +2296,36 @@ function bindStatic(){
     e.stopPropagation(); saveList();
   }));
 
+  // 搜索
+  const search = $('#homeSearch');
+  if (search) {
+    search.addEventListener('input', function(){
+      UI.query = search.value;
+      renderHome();
+    });
+    search.addEventListener('search', function(){
+      UI.query = search.value;
+      renderHome();
+    });
+  }
+
+  // 大标题随滚动收起
+  $$('.scroll').forEach(function(sc){
+    sc.addEventListener('scroll', function(){
+      const head = sc.parentElement.querySelector('.page-head');
+      if (head) head.classList.toggle('is-compact', sc.scrollTop > 16);
+    }, { passive: true });
+  });
+
+  // 标题输入框回车：连续添加
+  document.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    if (e.target && e.target.id === 'todoTitle') {
+      e.preventDefault();
+      saveTodoSheet({ keepOpen: true });
+    }
+  });
+
   window.addEventListener('storage', function(e){
     if (e.key === KEY) { loadAll(); renderApp(); }
   });
@@ -1827,14 +2339,19 @@ function syncColsIcon(){
     : '<rect x="3" y="3" width="18" height="7" rx="1.8"/><rect x="3" y="14" width="18" height="7" rx="1.8"/>';
 }
 
-/* Toast */
-let toastTimer = null;
-function toast(msg){
+/* Toast（支持一个撤销操作） */
+let toastTimer = null, toastAction = null;
+function toast(msg, actionText, onAction){
   const el = $('#toast');
-  el.textContent = msg;
+  toastAction = onAction || null;
+  el.innerHTML = '<span>' + esc(msg) + '</span>' +
+    (actionText ? '<button class="toast-act" data-act="toast-undo">' + esc(actionText) + '</button>' : '');
   el.classList.add('show');
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2000);
+  toastTimer = setTimeout(function(){
+    el.classList.remove('show');
+    toastAction = null;
+  }, actionText ? 4500 : 1800);
 }
 
 /* ============================================================

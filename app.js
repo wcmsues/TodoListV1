@@ -1384,12 +1384,15 @@ document.addEventListener('click', function(e){
       if (!DB.lists.length) { EDIT = null; push('editList', { isNew:true }); break; }
       openTodoSheet(null, null, { date: calSelDate });
       break;
-    case 'toggle-cal-done':
+    case 'toggle-cal-done': {
       UI.calHideDone = !UI.calHideDone;
       saveUI();
-      if (SHEET && SHEET.kind === 'settings') renderSheet({ kind:'settings' });
+      // 就地切换开关外观（设置面板不保存 SHEET 状态，整块重绘会看不到变化）
+      const sw = el.querySelector('.switch');
+      if (sw) sw.classList.toggle('is-on', UI.calHideDone);
       renderCalendar();
       break;
+    }
 
     /* 其他 */
     case 'toggle-cols':

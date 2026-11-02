@@ -13,7 +13,7 @@
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="styles.css?v=20261102e" />
+<link rel="stylesheet" href="styles.css?v=20261102f" />
 </head>
 <body>
 
@@ -35,11 +35,6 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
-      </div>
-      <div class="segment">
-        <button class="segment-item is-active" data-tab="home">待办事项</button>
-        <button class="segment-item" data-tab="calendar">日历</button>
-        <button class="segment-item" data-tab="done">已完成</button>
       </div>
     </header>
     <div class="scroll" id="homeScroll">
@@ -66,21 +61,13 @@
           </button>
         </div>
       </div>
-      <div class="segment">
-        <button class="segment-item" data-tab="home">待办事项</button>
-        <button class="segment-item is-active" data-tab="calendar">日历</button>
-        <button class="segment-item" data-tab="done">已完成</button>
-      </div>
+      <div class="cal-week" id="calWeek"></div>
       <div class="cal-bar">
         <div class="cal-range" id="calRange">
-          <button class="cal-range-item" data-act="cal-range" data-range="day">今日</button>
-          <button class="cal-range-item is-active" data-act="cal-range" data-range="week">本周</button>
-          <button class="cal-range-item" data-act="cal-range" data-range="month">本月</button>
+          <button class="cal-range-item" data-act="cal-range" data-range="day">日</button>
+          <button class="cal-range-item is-active" data-act="cal-range" data-range="week">周</button>
+          <button class="cal-range-item" data-act="cal-range" data-range="month">月</button>
         </div>
-        <button class="cal-hide" data-act="toggle-cal-done" aria-label="隐藏已完成事项">
-          <span class="cal-hide-lbl">隐藏已完成</span>
-          <span class="switch" id="calHideSwitch"></span>
-        </button>
       </div>
     </header>
     <div class="scroll" id="calScroll">
@@ -89,6 +76,9 @@
       <div class="empty-state" id="calEmpty" hidden>
         <svg viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="3.2"/><path d="M8 3v3.4M16 3v3.4M3.6 10h16.8"/></svg>
         <p id="calEmptyText">这段时间没有安排</p>
+        <div class="empty-actions">
+          <button class="ghost-btn" data-act="add-todo-day">添加待办</button>
+        </div>
       </div>
     </div>
   </section>
@@ -106,11 +96,6 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
-      </div>
-      <div class="segment">
-        <button class="segment-item" data-tab="home">待办事项</button>
-        <button class="segment-item" data-tab="calendar">日历</button>
-        <button class="segment-item is-active" data-tab="done">已完成</button>
       </div>
       <div class="chips" id="doneChips"></div>
     </header>
@@ -169,6 +154,22 @@
     <div class="scroll edit-scroll" id="editListBody"></div>
   </section>
 
+  <!-- ================= 底部导航 ================= -->
+  <nav class="tab-bar" id="tabBar" role="tablist" aria-label="主导航">
+    <button class="tab-item is-active" data-tab="home" role="tab" aria-selected="true">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+      <span>待办</span>
+    </button>
+    <button class="tab-item" data-tab="calendar" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="3.2"/><path d="M8 3v3.4M16 3v3.4M3.6 10h16.8"/></svg>
+      <span>日历</span>
+    </button>
+    <button class="tab-item" data-tab="done" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+      <span>已完成</span>
+    </button>
+  </nav>
+
 </div>
 
 <!-- Sheet 容器 -->
@@ -179,6 +180,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20261102e"></script>
+<script src="app.js?v=20261102f"></script>
 </body>
 </html>

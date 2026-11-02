@@ -418,12 +418,20 @@ function renderApp(){
     activateView('editList'); renderEditList(base.params);
   }
 
+  // 进入详情 / 编辑页时隐藏底部导航，回到根视图恢复
+  const bar = $('#tabBar');
+  if (bar) bar.hidden = base.name !== 'root';
+
   if (sheetState) renderSheet(sheetState.params);
   else hideSheet();
 }
 
 function syncSegment(){
-  $$('.segment-item').forEach(b => b.classList.toggle('is-active', b.dataset.tab === UI.tab));
+  $$('.tab-item').forEach(function(b){
+    const on = b.dataset.tab === UI.tab;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
 }
 
 /* ---------- 首页 ---------- */
@@ -501,22 +509,58 @@ function starHTML(t){
 }
 
 /* ---------- 日历 ---------- */
+let calSelDate = todayISO();   // 周条选中的日期，默认今天
+
+function weekDates(iso){
+  const d = parseISO(iso);
+  const wd = (d.getDay() + 6) % 7;
+  const mon = new Date(d); mon.setDate(d.getDate() - wd);
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const x = new Date(mon); x.setDate(mon.getDate() + i);
+    out.push(toISO(x));
+  }
+  return out;
+}
+
 function calRangeBounds(range){
-  const now = new Date();
-  if (range === 'day') { const d = todayISO(); return { start: d, end: d }; }
+  const base = parseISO(calSelDate);
+  if (range === 'day') return { start: calSelDate, end: calSelDate };
   if (range === 'month') {
     return {
-      start: toISO(new Date(now.getFullYear(), now.getMonth(), 1)),
-      end: toISO(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+      start: toISO(new Date(base.getFullYear(), base.getMonth(), 1)),
+      end: toISO(new Date(base.getFullYear(), base.getMonth() + 1, 0))
     };
   }
   // 本周：周一到周日
-  const wd = (now.getDay() + 6) % 7;
-  const mon = new Date(now); mon.setDate(now.getDate() - wd);
+  const wd = (base.getDay() + 6) % 7;
+  const mon = new Date(base); mon.setDate(base.getDate() - wd);
   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
   return { start: toISO(mon), end: toISO(sun) };
 }
 const CAL_LABEL = { day:'今日', week:'本周', month:'本月' };
+
+/* 顶部周条：一周 7 天，有安排的日期下方带小圆点 */
+function renderCalWeek(){
+  const host = $('#calWeek');
+  if (!host) return;
+  const days = weekDates(calSelDate);
+  const counts = {};
+  DB.todos.forEach(function(t){
+    if (t.date && !(UI.calHideDone && t.done)) counts[t.date] = (counts[t.date] || 0) + 1;
+  });
+  const today = todayISO();
+  host.innerHTML = days.map(function(iso){
+    const d = parseISO(iso);
+    const n = counts[iso] || 0;
+    const cls = 'cw-day' + (iso === calSelDate ? ' is-sel' : '') + (iso === today ? ' is-today' : '');
+    return '<button class="' + cls + '" data-act="cal-pick-day" data-date="' + iso + '">' +
+      '<span class="cw-wd">' + '一二三四五六日'[(d.getDay() + 6) % 7] + '</span>' +
+      '<span class="cw-num">' + d.getDate() + '</span>' +
+      '<span class="cw-dot' + (n ? '' : ' is-empty') + '"></span>' +
+    '</button>';
+  }).join('');
+}
 
 function calOrder(a, b){
   if (a.date !== b.date) return a.date < b.date ? -1 : 1;
@@ -530,15 +574,15 @@ function calOrder(a, b){
   return (a.createdAt || 0) - (b.createdAt || 0);
 }
 
-function renderCalendar(){
+/* motion: { dir: -1 | 0 | 1 } 切换范围 / 日期时播放淡入位移 */
+function renderCalendar(motion){
   const range = UI.calRange;
   const bounds = calRangeBounds(range);
+  renderCalWeek();
   const label = $('#calRangeLabel');
-  if (label) label.textContent = CAL_LABEL[range];
+  if (label) label.textContent = calRangeTitle();
   $$('#calRange .cal-range-item').forEach(b =>
     b.classList.toggle('is-active', b.dataset.range === range));
-  const sw = $('#calHideSwitch');
-  if (sw) sw.classList.toggle('is-on', !!UI.calHideDone);
 
   const items = DB.todos
     .filter(t => t.date && t.date >= bounds.start && t.date <= bounds.end)
@@ -553,46 +597,82 @@ function renderCalendar(){
     if (!cur || cur.date !== t.date) { cur = { date: t.date, items: [] }; groups.push(cur); }
     cur.items.push(t);
   });
-  $('#calBody').innerHTML = groups.map(calDayHTML).join('');
+
+  const body = $('#calBody');
+  body.innerHTML = groups.map(calDayHTML).join('');
+  if (motion) {
+    body.style.setProperty('--cal-dx', motion.dir > 0 ? '12px' : (motion.dir < 0 ? '-12px' : '0px'));
+    body.classList.remove('is-anim');
+    void body.offsetWidth;
+    body.classList.add('is-anim');
+  } else {
+    body.classList.remove('is-anim');
+  }
+
   $('#calEmpty').hidden = items.length > 0;
   const emptyText = $('#calEmptyText');
   if (emptyText) {
-    emptyText.textContent = UI.calHideDone ? '这段时间没有未完成的安排' : '这段时间没有安排';
+    emptyText.textContent = (range === 'day' ? calDayName() : '这段时间') +
+      (UI.calHideDone ? '没有未完成的安排' : '没有安排');
   }
+}
+
+/* 周条选日后，把列表滚动到对应那天 */
+function scrollToCalDay(iso){
+  const sc = $('#calScroll');
+  if (!sc) return;
+  const day = sc.querySelector('.cal-day[data-date="' + iso + '"]');
+  if (!day) return;
+  const top = Math.max(0, day.offsetTop - sc.offsetTop - 6);
+  try { sc.scrollTo({ top: top, behavior: 'smooth' }); }
+  catch (e) { sc.scrollTop = top; }
+}
+
+function calDayName(iso){
+  const d = iso || calSelDate;
+  return d === todayISO() ? '今天' : fmtDate(d) + ' 周' + '日一二三四五六'[parseISO(d).getDay()];
+}
+
+function calRangeTitle(){
+  if (UI.calRange === 'day') return calDayName();
+  return CAL_LABEL[UI.calRange];
 }
 
 function calDayHTML(group){
   const d = parseISO(group.date);
   const wd = '日一二三四五六'[d.getDay()];
   const isToday = group.date === todayISO();
-  return '<div class="cal-day">' +
-    '<div class="cal-day-head">' +
-      '<span class="cal-day-date' + (isToday ? ' is-today' : '') + '">' +
-        (d.getMonth() + 1) + '月' + d.getDate() + '日</span>' +
-      '<span class="cal-day-wd">周' + wd + (isToday ? ' · 今天' : '') + '</span>' +
+  const dateLabel = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  return '<div class="cal-day" data-date="' + group.date + '">' +
+    '<button class="cal-day-head" data-act="cal-focus-day" data-date="' + group.date + '" ' +
+      'aria-label="只看 ' + dateLabel + ' 的安排">' +
+      '<span class="cal-day-date' + (isToday ? ' is-today' : '') + '">' + dateLabel + '</span>' +
+      '<span class="cal-day-wd">周' + wd + '</span>' +
       '<span class="cal-day-num">' + group.items.length + '</span>' +
-    '</div>' +
-    '<div class="cal-day-body">' + group.items.map(calItemHTML).join('') + '</div>' +
+    '</button>' +
+    '<div class="cal-day-card">' + group.items.map(calItemHTML).join('') + '</div>' +
   '</div>';
 }
 
 function calItemHTML(t){
   const list = findList(t.listId);
   const color = list ? list.color : PALETTE[0];
-  return '<div class="cal-item' + (t.done ? ' is-done' : '') + '" ' +
-      'style="--c:' + color + ';background:' + hexRgba(color, .1) + '">' +
-    '<span class="cal-stripe" style="background:' + color + '"></span>' +
-    '<div class="cal-time">' + (t.time ? esc(t.time) : '全天') + '</div>' +
-    '<div class="cal-main" data-act="edit-todo" data-id="' + t.id + '">' +
-      '<div class="cal-title">' +
-        (t.starred ? '<span class="cal-star" aria-label="已加星">' + svg('star') + '</span>' : '') +
-        esc(t.title) + '</div>' +
-      (t.note ? '<div class="cal-note">' + esc(t.note) + '</div>' : '') +
-      (list ? '<div class="cal-list" style="color:' + color + '">' + svg(list.icon) + esc(list.name) + '</div>' : '') +
-    '</div>' +
+  const meta = [];
+  if (t.time) meta.push('<span class="cr-time">' + esc(t.time) + '</span>');
+  if (list) meta.push('<span class="cr-list">' + esc(list.name) + '</span>');
+  if (t.note) meta.push('<span class="cr-note">' + esc(t.note) + '</span>');
+  const sep = '<span class="cr-sep">·</span>';
+
+  return '<div class="cal-row' + (t.done ? ' is-done' : '') + '" data-id="' + t.id + '">' +
     '<button class="cal-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
       'style="--c:' + color + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
       '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
+    '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
+      '<div class="cal-row-title">' +
+        (t.starred ? '<span class="cal-star" aria-label="已加星">' + svg('star') + '</span>' : '') +
+        '<span class="cal-text">' + esc(t.title) + '</span></div>' +
+      (meta.length ? '<div class="cal-row-meta">' + meta.join(sep) + '</div>' : '') +
+    '</div>' +
   '</div>';
 }
 
@@ -700,7 +780,7 @@ function renderSheet(p){
     } else {
       // 所属列表只能从已有列表里选，默认选中第一个
       const lid = (p.listId && findList(p.listId)) ? p.listId : ((DB.lists[0] && DB.lists[0].id) || '');
-      form = { title:'', note:'', progress:0, date:'', time:'', listId: lid, starred:false };
+      form = { title:'', note:'', progress:0, date: p.date || '', time:'', listId: lid, starred:false };
     }
     SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
@@ -762,6 +842,9 @@ function settingsHTML(){
           '<button class="menu-item" data-act="toggle-hide-empty">' + svg('list') +
             '<span>隐藏空列表</span>' +
             '<span class="switch' + (UI.hideEmpty ? ' is-on' : '') + '"></span></button>' +
+          '<button class="menu-item" data-act="toggle-cal-done">' + svg('checkCircle') +
+            '<span>日历隐藏已完成</span>' +
+            '<span class="switch' + (UI.calHideDone ? ' is-on' : '') + '"></span></button>' +
         '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button></div>' +
@@ -1069,6 +1152,22 @@ function toggleTodo(id){
   t.doneAt = t.done ? todayISO() : '';
   if (t.done) t.progress = 100;
   save();
+
+  // 日历里勾选后先就地播放完成动效，稍后再重排，避免条目立刻跳走
+  if (UI.tab === 'calendar' && current().name === 'root' && $('#calBody')) {
+    const row = $('#calBody .cal-row[data-id="' + id + '"]');
+    const check = $('#calBody .cal-check[data-id="' + id + '"]');
+    if (row) row.classList.toggle('is-done', !!t.done);
+    if (check) check.classList.toggle('is-done', !!t.done);
+    // 开启「隐藏已完成」时，先淡出再重排
+    if (row && t.done && UI.calHideDone) {
+      setTimeout(function(){ if (row.isConnected) row.classList.add('is-removing'); }, 150);
+    }
+    setTimeout(function(){
+      if (UI.tab === 'calendar' && current().name === 'root') renderCalendar();
+    }, 320);
+    return;
+  }
   renderApp();
 }
 function moveTodoWithinList(listId, from, to){
@@ -1259,14 +1358,36 @@ document.addEventListener('click', function(e){
     case 'menu-del-list': deleteList(id); break;
 
     /* 日历 */
-    case 'cal-range':
-      UI.calRange = el.dataset.range || 'week';
+    case 'cal-range': {
+      const next = el.dataset.range || 'week';
+      if (next === UI.calRange) break;
+      // 只切换显示密度，选中日期保持不变
+      UI.calRange = next;
       saveUI();
-      renderCalendar();
+      renderCalendar({ dir: 0 });
+      break;
+    }
+    case 'cal-pick-day':
+      // 周条只移动日期指针，不改变范围
+      calSelDate = el.dataset.date || todayISO();
+      renderCalendar({ dir: 0 });
+      scrollToCalDay(calSelDate);
+      break;
+    case 'cal-focus-day':
+      // 点日期头：只看这一天
+      calSelDate = el.dataset.date || todayISO();
+      UI.calRange = 'day';
+      saveUI();
+      renderCalendar({ dir: 0 });
+      break;
+    case 'add-todo-day':
+      if (!DB.lists.length) { EDIT = null; push('editList', { isNew:true }); break; }
+      openTodoSheet(null, null, { date: calSelDate });
       break;
     case 'toggle-cal-done':
       UI.calHideDone = !UI.calHideDone;
       saveUI();
+      if (SHEET && SHEET.kind === 'settings') renderSheet({ kind:'settings' });
       renderCalendar();
       break;
 
@@ -1303,8 +1424,10 @@ document.addEventListener('change', function(e){
 /* ============================================================
    14. 待办表单动作
    ============================================================ */
-function openTodoSheet(todoId, listId){
-  push('sheet', { kind:'todo', todoId: todoId || null, listId: listId || null, _t: uid() });
+function openTodoSheet(todoId, listId, extra){
+  const p = { kind:'todo', todoId: todoId || null, listId: listId || null, _t: uid() };
+  if (extra && extra.date) p.date = extra.date;
+  push('sheet', p);
 }
 function openTodoView(todoId){
   if (!findTodo(todoId)) return;
@@ -1632,10 +1755,15 @@ function resetAll(){
    18. 静态绑定
    ============================================================ */
 function bindStatic(){
-  $$('.segment-item').forEach(btn => {
+  $$('.tab-item').forEach(btn => {
     btn.addEventListener('click', function(){
       const tab = btn.dataset.tab;
-      if (UI.tab === tab) return;
+      if (UI.tab === tab) {
+        // 再次点击当前页签：回到该页顶部
+        const sc = $('.view.is-active .scroll');
+        if (sc) sc.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       UI.tab = tab;
       UI.sorting = false;
       renderApp();

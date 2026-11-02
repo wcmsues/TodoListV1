@@ -131,7 +131,7 @@ const isOverdue = t => !!t.date && !t.done && t.date < todayISO();
    3. 状态
    ============================================================ */
 let DB = { version:2, lists:[], tags:[], todos:[] };
-let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, sorting:false };
+let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, sorting:false, hideEmpty:false };
 let stack = [{ name:'root', params:{} }];
 let canHistory = true;
 let SHEET = null;
@@ -282,7 +282,9 @@ function saveDebounced(){
   saveTimer = setTimeout(save, 220);
 }
 function saveUI(){
-  try { localStorage.setItem(UIKEY, JSON.stringify({ cols: UI.cols })); } catch (e) {}
+  try {
+    localStorage.setItem(UIKEY, JSON.stringify({ cols: UI.cols, hideEmpty: !!UI.hideEmpty }));
+  } catch (e) {}
 }
 function loadAll(){
   let data = null;
@@ -301,6 +303,7 @@ function loadAll(){
   try {
     const ui = JSON.parse(localStorage.getItem(UIKEY) || '{}');
     if (ui && ui.cols === 1) UI.cols = 1;
+    if (ui && ui.hideEmpty === true) UI.hideEmpty = true;
   } catch (e) {}
 }
 
@@ -400,10 +403,12 @@ function syncSegment(){
 /* ---------- 首页 ---------- */
 function renderHome(){
   const board = $('#board');
-  // 只显示还有未完成待办的列表，空列表不在首页占位（仍可在设置中管理）
-  const lists = DB.lists.filter(function(l){
-    return DB.todos.some(function(t){ return t.listId === l.id && !t.done; });
-  });
+  // 默认展示所有列表；在设置里开启「隐藏空列表」后，只显示还有未完成待办的列表
+  const lists = UI.hideEmpty
+    ? DB.lists.filter(function(l){
+        return DB.todos.some(function(t){ return t.listId === l.id && !t.done; });
+      })
+    : DB.lists;
   $('#homeEmpty').hidden = lists.length > 0;
   const emptyAction = $('#emptyAction');
   if (emptyAction) {
@@ -635,6 +640,9 @@ function settingsHTML(){
         '<div class="group-card">' +
           '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
             '<span>' + (UI.editing ? '完成编辑' : '编辑列表与标签') + '</span></button>' +
+          '<button class="menu-item" data-act="toggle-hide-empty">' + svg('list') +
+            '<span>隐藏空列表</span>' +
+            '<span class="switch' + (UI.hideEmpty ? ' is-on' : '') + '"></span></button>' +
         '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button></div>' +
@@ -1008,6 +1016,12 @@ document.addEventListener('click', function(e){
     case 'open-edit-tag': EDIT = null; push('editTag', { tagId:id }); break;
     case 'del-list': deleteList(id); break;
     case 'del-tag': deleteTag(id); break;
+    case 'toggle-hide-empty':
+      UI.hideEmpty = !UI.hideEmpty;
+      saveUI();
+      renderSheet({ kind:'settings' });
+      renderHome();
+      break;
     case 'export': exportJSON(); break;
     case 'import': pickFile(); break;
     case 'load-demo': loadDemo(); break;

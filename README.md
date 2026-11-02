@@ -4,10 +4,9 @@
 
 ## 在线访问
 
-- **GitHub Pages**：https://wcmsues.github.io/TodoListV1/
+- **Demo**：https://todolistwcm.netlify.app
 - **仓库地址**：https://github.com/wcmsues/TodoListV1
 
-> GitHub Pages 需要先在仓库 `Settings → Pages` 中把 Source 设为 `Deploy from a branch`，Branch 选 `main` + `/(root)`。
 
 ## 功能
 
@@ -18,7 +17,7 @@
 - **标签系统**：跨列表复用标签，可按列表筛选已完成项
 - **排序模式**：长按列表菜单进入排序模式，上下移动调整待办顺序
 - **双栏 / 单栏**：主页右上角一键切换卡片布局（手机单栏、平板双栏）
-- **设置面板**：管理列表与标签、加载示例数据、导出 / 导入 JSON、清空全部数据
+- **设置面板**：管理列表与标签、隐藏空列表开关、加载示例数据、导出 / 导入 JSON、清空全部数据
 - **离线可用**：所有数据存于浏览器 `localStorage`，断网也能打开使用
 
 ## 本地运行

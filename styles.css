@@ -567,6 +567,19 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .menu-item:active{background:#F7F7FA;}
 .menu-item.is-danger{color:var(--red);}
 .menu-item svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.menu-item > span:not(.switch){flex:1;min-width:0;}
+
+/* 开关 */
+.switch{
+  flex:none;margin-left:auto;position:relative;width:46px;height:28px;border-radius:99px;
+  background:#E3E3E8;transition:background .2s ease;
+}
+.switch::after{
+  content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.22);transition:transform .2s ease;
+}
+.switch.is-on{background:#34C759;}
+.switch.is-on::after{transform:translateX(18px);}
 
 /* Toast */
 .toast{

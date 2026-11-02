@@ -552,7 +552,8 @@ function renderSheet(p){
         listName: list ? list.name : ''
       };
     } else {
-      const lid = p.listId || (DB.lists[0] && DB.lists[0].id) || '';
+      // 从某个列表里点添加时预填该列表；从首页右上角新建则留空，显示输入提示
+      const lid = p.listId || '';
       const list = lid ? findList(lid) : null;
       form = {
         title:'', note:'', progress:0, date:'', tags:[],
@@ -625,8 +626,8 @@ function settingsHTML(){
 
   return grab() +
     '<div class="sheet-head">' +
-      '<h2 class="sheet-title">列表</h2>' +
-      '<button class="pill-btn" data-act="toggle-edit">' + (UI.editing ? '完成' : '编辑') + '</button>' +
+      '<h2 class="sheet-title">设置</h2>' +
+      '<button class="circle-btn" data-act="close-sheet" aria-label="关闭">' + svg('close') + '</button>' +
     '</div>' +
     '<div class="sheet-body">' +
       '<div class="group"><div class="group-head"><span>智能列表</span></div>' +
@@ -637,6 +638,11 @@ function settingsHTML(){
       '<div class="group"><div class="group-head"><span>我的标签</span>' +
         '<button class="group-add" data-act="new-tag" aria-label="新建标签">' + svg('plus') + '</button></div>' +
         '<div class="group-card" data-reorder="tag">' + tagRows + '</div></div>' +
+      '<div class="group"><div class="group-head"><span>管理</span></div>' +
+        '<div class="group-card">' +
+          '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
+            '<span>' + (UI.editing ? '完成编辑' : '编辑列表与标签') + '</span></button>' +
+        '</div></div>' +
       '<div class="group"><div class="group-head"><span>数据</span></div>' +
         '<div class="group-card">' +
           '<button class="menu-item" data-act="load-demo">' + svg('bulb') + '<span>加载示例数据</span></button>' +
@@ -709,7 +715,10 @@ function todoSheetHTML(p){
       '<div class="field-label">日期</div>' +
       '<div class="form-card"><div class="form-row">' + svg('calendar', 'ri') +
         '<span class="lbl">日期</span>' +
-        '<input type="date" id="todoDate" value="' + esc(f.date) + '" />' +
+        '<div class="date-cell">' +
+          '<input type="date" id="todoDate" class="' + (f.date ? '' : 'is-empty') + '" value="' + esc(f.date) + '" />' +
+          (f.date ? '' : '<span class="date-hint">未设置，点击选择</span>') +
+        '</div>' +
         (f.date ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
           '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
       '</div></div>' +
@@ -980,8 +989,14 @@ document.addEventListener('click', function(e){
       UI.doneYear = el.dataset.year; back(); break;
 
     /* 设置面板 */
-    case 'toggle-edit':
-      UI.editing = !UI.editing; renderSheet({ kind:'settings' }); break;
+    case 'toggle-edit': {
+      UI.editing = !UI.editing;
+      renderSheet({ kind:'settings' });
+      // 进入编辑后回到顶部，避免看不到列表行上出现的删除 / 拖拽按钮
+      const body = $('#sheet .sheet-body');
+      if (body) body.scrollTop = 0;
+      break;
+    }
     case 'smart':
       UI.tab = id === 'done' ? 'done' : 'home';
       UI.doneList = 'all';

@@ -22,7 +22,7 @@ const ICONS = {
   box:'<path d="M3.4 8.4h17.2v9.2a2 2 0 0 1-2 2H5.4a2 2 0 0 1-2-2z"/><path d="M3.4 8.4L5.6 4.6h12.8l2.2 3.8"/><path d="M9.4 12.4h5.2"/>',
   tag:'<path d="M20.3 13.1l-7.4 7.4a2 2 0 0 1-2.8 0l-7.4-7.4a2 2 0 0 1-.6-1.4V5.4a2 2 0 0 1 2-2h6.3a2 2 0 0 1 1.4.6l8.5 6.3a2 2 0 0 1 0 2.8z"/><circle cx="8.2" cy="8.2" r="1.4"/>',
   heart:'<path d="M12 20s-7.6-4.6-7.6-9.4A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.6 3c0 4.8-7.6 9.4-7.6 9.4z"/>',
-  flag:'<path d="M5.4 20V4.6h9.2l-.8 2.6 5 0v7.4H6.6"/>',
+  flag:'<path d="M5.6 4.2h12.6l-2 4.4 2 4.4H5.6z"/><path d="M5.6 20.8V4.2"/>',
   bookmark:'<path d="M6.4 4.6h11.2v15.8L12 16.2l-5.6 4.2z"/>',
   star:'<path d="M12 3.4l2.7 5.5 6 .9-4.4 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 9.8l6-.9z"/>',
   pin:'<path d="M9 3h6l-1 6 3.4 3.4H6.6L10 9z"/><path d="M12 12.4V21"/>',
@@ -70,6 +70,7 @@ const ICONS = {
   minus:'<path d="M5 12h14"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
   close:'<path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4"/>',
+  moon:'<path d="M20.4 14.6A8.7 8.7 0 0 1 9.4 3.6 8.7 8.7 0 1 0 20.4 14.6z"/>',
   filter:'<path d="M4 5.6h16l-6.2 7.4v5.4l-3.6 1.9v-7.3z"/>',
   undo:'<path d="M4.4 10.6h9.4a5 5 0 0 1 0 10H8.6"/><path d="M8.6 6.2L4.4 10.6l4.2 4.4"/>',
   arrowUp:'<path d="M12 19V5M6 11l6-6 6 6"/>',
@@ -140,6 +141,30 @@ function ink(hex){
     return s.length === 1 ? '0' + s : s;
   }).join('');
 }
+/* ---------- 深浅色 ---------- */
+const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
+const darkMedia = (function(){
+  try { return window.matchMedia('(prefers-color-scheme: dark)'); } catch (e) { return null; }
+})();
+function resolvedTheme(){
+  if (UI.theme === 'dark') return 'dark';
+  if (UI.theme === 'light') return 'light';
+  return (darkMedia && darkMedia.matches) ? 'dark' : 'light';
+}
+function applyTheme(){
+  const t = resolvedTheme();
+  document.documentElement.dataset.theme = t;
+  const meta = document.getElementById('themeColor');
+  if (meta) meta.setAttribute('content', t === 'dark' ? '#1C1C1E' : '#F2F2F5');
+}
+/* 跟随系统时，系统切换深浅色要即时生效 */
+function bindThemeWatcher(){
+  if (!darkMedia) return;
+  const onScheme = function(){ if (UI.theme === 'system') applyTheme(); };
+  if (darkMedia.addEventListener) darkMedia.addEventListener('change', onScheme);
+  else if (darkMedia.addListener) darkMedia.addListener(onScheme);
+}
+
 /* 列表图标徽标：Apple 风格圆角方块 + 白色字形 */
 function iconBadge(icon, color, cls){
   return '<span class="icon-badge' + (cls ? ' ' + cls : '') + '" style="--c:' + color + '">' +
@@ -164,7 +189,7 @@ const isOverdue = t => !!t.date && !t.done && t.date < todayISO();
    ============================================================ */
 let DB = { version:2, lists:[], tags:[], todos:[] };
 let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, sorting:false, hideEmpty:false,
-           calRange:'week', hideDone:false, query:'' };
+           calRange:'week', hideDone:false, query:'', theme:'light' };
 let navDir = 0;   // 1 推入 / -1 退回 / 0 无方向
 let lastViewName = '';
 let stack = [{ name:'root', params:{} }];
@@ -270,7 +295,8 @@ function normalizeDB(raw){
       starred: !!t.starred,
       done: !!t.done,
       doneAt: /^\d{4}-\d{2}-\d{2}$/.test(t.doneAt || '') ? t.doneAt : (t.done ? todayISO() : ''),
-      createdAt: Number(t.createdAt) || Date.now()
+      createdAt: Number(t.createdAt) || Date.now(),
+      order: typeof t.order === 'number' && isFinite(t.order) ? t.order : undefined
     });
   });
   return out;
@@ -315,7 +341,8 @@ function saveUI(){
   try {
     localStorage.setItem(UIKEY, JSON.stringify({
       cols: UI.cols, hideEmpty: !!UI.hideEmpty,
-      calRange: UI.calRange, hideDone: !!UI.hideDone
+      calRange: UI.calRange, hideDone: !!UI.hideDone,
+      theme: UI.theme
     }));
   } catch (e) {}
 }
@@ -339,6 +366,7 @@ function loadAll(){
     if (ui && ui.hideEmpty === true) UI.hideEmpty = true;
     if (ui && (ui.calRange === 'day' || ui.calRange === 'week' || ui.calRange === 'month')) UI.calRange = ui.calRange;
     if (ui && (ui.hideDone === true || ui.calHideDone === true)) UI.hideDone = true;
+    if (ui && (ui.theme === 'system' || ui.theme === 'light' || ui.theme === 'dark')) UI.theme = ui.theme;
   } catch (e) {}
 }
 
@@ -358,7 +386,7 @@ function dayGap(iso){
   const b = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
   return Math.round((a - b) / 86400000);
 }
-/* 排序：星标置顶 → 逾期 → 今天 → 未来 → 无日期，同组内按日期与时间 */
+/* 排序：旗标置顶 → 逾期 → 今天 → 未来 → 无日期，同组内按日期与时间 */
 function todoOrder(a, b){
   const sa = a.starred ? 1 : 0, sb = b.starred ? 1 : 0;
   if (sa !== sb) return sb - sa;
@@ -378,11 +406,22 @@ function todoOrder(a, b){
   }
   return (a.createdAt || 0) - (b.createdAt || 0);
 }
-/* 列表内展示顺序：排序模式保留手动顺序，其余按日期 + 星标自动排列 */
+/* 手动排序用 order 字段记录；没有 order 的走自动排序 */
+const orderOf = t => (typeof t.order === 'number' && isFinite(t.order) ? t.order : Infinity);
+/* 列表内展示顺序：手动排过序就按手动顺序，否则按日期 + 旗标自动排列 */
 function sortedOpenTodos(listId){
   const items = openTodos(listId);
-  if (UI.sorting) return items;
+  if (UI.sorting || items.some(t => typeof t.order === 'number')) {
+    return items.slice().sort((a, b) => orderOf(a) - orderOf(b));
+  }
   return items.slice().sort(todoOrder);
+}
+/* 列表详情展示全部待办：未完成在前，已完成按完成时间倒序排在后面 */
+function listAllTodos(listId){
+  const done = DB.todos
+    .filter(t => t.listId === listId && t.done)
+    .sort((a, b) => String(b.doneAt || '').localeCompare(String(a.doneAt || '')));
+  return sortedOpenTodos(listId).concat(done);
 }
 function todoColor(t, fallback){
   return fallback || PALETTE[0];
@@ -548,13 +587,9 @@ function renderHome(){
   }
 }
 
-/* 滑动操作外壳：右滑完成 / 左滑删除 */
-function swipeWrap(inner, id, done){
+/* 滑动操作外壳：只保留左滑删除 */
+function swipeWrap(inner, id){
   return '<div class="swipe" data-id="' + id + '">' +
-    '<div class="swipe-actions left">' +
-      '<button class="swipe-btn ' + (done ? 'is-restore' : 'is-done') + '" data-act="swipe-toggle" data-id="' + id + '">' +
-        (done ? '恢复' : '完成') + '</button>' +
-    '</div>' +
     '<div class="swipe-actions right">' +
       '<button class="swipe-btn is-del" data-act="swipe-del" data-id="' + id + '">删除</button>' +
     '</div>' +
@@ -578,8 +613,8 @@ function searchRowHTML(t){
         '<div class="tr-title' + (t.done ? ' is-done' : '') + '">' + esc(t.title) + '</div>' +
         (meta.length ? '<div class="tr-meta">' + meta.join('<span>·</span>') + '</div>' : '') +
       '</div>' +
-      starHTML(t) +
-    '</div>', t.id, !!t.done);
+      flagHTML(t) +
+    '</div>', t.id);
 }
 
 function listCardHTML(list){
@@ -616,12 +651,12 @@ function cardItemHTML(t, list){
       progressHTML(t, c) +
       metaHTML(t) +
     '</div>' +
-    starHTML(t) + '</div>';
+    flagHTML(t) + '</div>';
 }
 
-function starHTML(t){
+function flagHTML(t){
   return t.starred
-    ? '<span class="star-mark" aria-label="已加星">' + svg('star') + '</span>'
+    ? '<span class="flag-mark" aria-label="已标记旗标">' + svg('flag') + '</span>'
     : '';
 }
 
@@ -761,12 +796,18 @@ function calDayHTML(group){
   const isToday = group.date === todayISO();
   const dateLabel = (d.getMonth() + 1) + '月' + d.getDate() + '日';
   return '<div class="cal-day" data-date="' + group.date + '">' +
-    '<button class="cal-day-head" data-act="cal-focus-day" data-date="' + group.date + '" ' +
-      'aria-label="只看 ' + dateLabel + ' 的安排">' +
-      '<span class="cal-day-date' + (isToday ? ' is-today' : '') + '">' + dateLabel + '</span>' +
-      '<span class="cal-day-wd">周' + wd + '</span>' +
-      '<span class="cal-day-num">' + group.items.length + '</span>' +
-    '</button>' +
+    '<div class="cal-day-head">' +
+      '<button class="cal-day-open" data-act="cal-focus-day" data-date="' + group.date + '" ' +
+        'aria-label="只看 ' + dateLabel + ' 的安排">' +
+        '<span class="cal-day-date' + (isToday ? ' is-today' : '') + '">' + dateLabel + '</span>' +
+        '<span class="cal-day-wd">周' + wd + '</span>' +
+        '<span class="cal-day-num">' + group.items.length + '</span>' +
+      '</button>' +
+      (DB.lists.length
+        ? '<button class="cal-day-add" data-act="add-todo-day" data-date="' + group.date + '" ' +
+          'aria-label="在 ' + dateLabel + ' 添加待办">' + svg('plus') + '</button>'
+        : '') +
+    '</div>' +
     '<div class="cal-day-card">' + group.items.map(calItemHTML).join('') + '</div>' +
   '</div>';
 }
@@ -787,11 +828,11 @@ function calItemHTML(t){
         '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
       '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
         '<div class="cal-row-title">' +
-          (t.starred ? '<span class="cal-star" aria-label="已加星">' + svg('star') + '</span>' : '') +
+          (t.starred ? '<span class="cal-flag" aria-label="已标记旗标">' + svg('flag') + '</span>' : '') +
           '<span class="cal-text">' + esc(t.title) + '</span></div>' +
         (meta.length ? '<div class="cal-row-meta">' + meta.join(sep) + '</div>' : '') +
       '</div>' +
-    '</div>', t.id, !!t.done);
+    '</div>', t.id);
 }
 
 /* ---------- 已完成 ---------- */
@@ -836,7 +877,7 @@ function doneRowHTML(t){
         noteHTML(t, 'tr-note') +
       '</div>' +
       '<div class="tr-side is-done-side">' +
-        '<span class="tr-list-icon" style="color:' + (list ? ink(list.color) : 'var(--text2)') + '">' +
+        '<span class="tr-list-icon" style="color:var(--text2)">' +
           svg(list ? list.icon : 'list') + '</span>' +
         '<span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
     '</div>', t.id, true);
@@ -850,30 +891,40 @@ function renderList(listId){
     iconBadge(list.icon, list.color, 'is-nav') +
     '<span>' + esc(list.name) + '</span>';
 
-  const open = sortedOpenTodos(listId);
-  $('#listCount').textContent = open.length;
+  // 排序模式只排列未完成项；平时显示全部，已完成的排在后面
+  const items = UI.sorting ? sortedOpenTodos(listId) : listAllTodos(listId);
   $('#sortHint').hidden = !UI.sorting;
   const card = $('#listCard');
   card.classList.toggle('is-sorting', UI.sorting);
-  card.innerHTML = open.map(t => listRowHTML(t, list)).join('');
-  card.style.display = open.length ? 'block' : 'none';
-  $('#listEmpty').hidden = open.length > 0;
+  card.innerHTML = items.map(t => listRowHTML(t, list)).join('');
+  card.style.display = items.length ? 'block' : 'none';
+  $('#listEmpty').hidden = items.length > 0;
+
+  const sortBtn = $('#btnListSort');
+  if (sortBtn) {
+    sortBtn.textContent = UI.sorting ? '完成' : '编辑';
+    sortBtn.classList.toggle('is-active', UI.sorting);
+  }
+  const delBtn = $('#btnListDelete');
+  if (delBtn) delBtn.hidden = UI.sorting;
 }
 
 function listRowHTML(t, list){
   const c = todoColor(t, list.color);
+  const done = !!t.done;
   return swipeWrap(
     '<div class="todo-row' + (UI.sorting ? ' is-sorting' : '') + '" data-todo="' + t.id + '">' +
-      '<button class="check" data-act="toggle" data-id="' + t.id + '" style="--c:' + ink(c) + '" aria-label="标记完成">' +
+      '<button class="check' + (done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
+        'style="--c:' + ink(c) + '" aria-label="' + (done ? '恢复为未完成' : '标记完成') + '">' +
         '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
       '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '">' +
-        '<div class="tr-title">' + esc(t.title) + '</div>' +
+        '<div class="tr-title' + (done ? ' is-done' : '') + '">' + esc(t.title) + '</div>' +
         noteHTML(t, 'tr-note') +
         progressHTML(t, c) +
         metaHTML(t, 'tr-meta') +
       '</div>' +
-      starHTML(t) +
-    '</div>', t.id, false);
+      flagHTML(t) +
+    '</div>', t.id);
 }
 
 /* ============================================================
@@ -916,6 +967,7 @@ function renderSheet(p){
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
+  else if (p.kind === 'theme') sheet.innerHTML = themeSheetHTML();
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
   else if (p.kind === 'confirm') sheet.innerHTML = confirmSheetHTML(p);
 
@@ -1006,6 +1058,13 @@ function settingsHTML(){
             '<span>隐藏已完成</span>' +
             '<span class="switch' + (UI.hideDone ? ' is-on' : '') + '"></span></button>' +
         '</div></div>' +
+      '<div class="group"><div class="group-head"><span>外观</span></div>' +
+        '<div class="group-card">' +
+          '<button class="menu-item" data-act="theme">' + svg('moon') +
+            '<span>深色模式</span>' +
+            '<span class="menu-value">' + THEME_LABEL[UI.theme] + '</span>' +
+            '<svg class="menu-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>' +
+        '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<div class="group-actions">' +
           '<button class="group-text' + (UI.editing ? ' is-active' : '') + '" data-act="toggle-edit">' +
@@ -1087,7 +1146,7 @@ function todoSheetHTML(p){
       '<div class="field-label">旗标</div>' +
       '<div class="form-card"><button class="form-row star-row' + (f.starred ? ' is-on' : '') + '" data-act="toggle-star" ' +
         'role="switch" aria-checked="' + (f.starred ? 'true' : 'false') + '">' +
-        svg('star', 'ri') +
+        svg('flag', 'ri') +
         '<span class="lbl">标记为旗标</span>' +
         '<span class="switch' + (f.starred ? ' is-on' : '') + '"></span></button></div>' +
       '<div class="field-label">进度</div>' +
@@ -1241,6 +1300,28 @@ function listPickerHTML(){
   }).join('');
 }
 
+/* ---------- 外观（深色模式） ---------- */
+function themeSheetHTML(){
+  const opts = [
+    { k:'system', label:'跟随系统', sub:'随系统自动打开或关闭深色模式' },
+    { k:'light',  label:'浅色模式' },
+    { k:'dark',   label:'深色模式' }
+  ];
+  return grab() +
+    '<div class="sheet-head"><h2 class="sheet-title">深色模式</h2></div>' +
+    '<div class="sheet-body"><div class="menu-card">' +
+    opts.map(o => {
+      const on = UI.theme === o.k;
+      return '<button class="menu-item" data-act="pick-theme" data-theme="' + o.k + '">' +
+        '<span>' + o.label +
+          (o.sub ? '<small style="display:block;font-size:12.5px;color:var(--text2);margin-top:1px;font-weight:400">' + o.sub + '</small>' : '') +
+        '</span>' +
+        (on ? '<span style="flex:none;color:var(--blue)">' + svg('check') + '</span>' : '') +
+        '</button>';
+    }).join('') +
+    '</div></div>';
+}
+
 /* ---------- 年份筛选 ---------- */
 function yearSheetHTML(){
   const years = Array.from(new Set(
@@ -1384,6 +1465,8 @@ function moveTodoWithinList(listId, from, to){
   const ti = DB.todos.indexOf(target);
   if (from > to) DB.todos.splice(ti, 0, moved);
   else DB.todos.splice(ti + 1, 0, moved);
+  // 记下手动顺序，退出编辑后依然生效
+  openTodos(listId).forEach(function(t, i){ t.order = i; });
 }
 function deleteTodo(id){
   const i = DB.todos.findIndex(t => t.id === id);
@@ -1410,7 +1493,9 @@ function deleteList(id){
       DB.todos = DB.todos.filter(t => t.listId !== id);
       if (UI.doneList === id) UI.doneList = 'all';
       save();
-      if (current().name === 'editList') { EDIT = null; back(); }
+      const cur = current();
+      if (cur.name === 'editList') { EDIT = null; back(); }
+      else if (cur.name === 'list') { UI.sorting = false; back(); }
       else renderApp();
     }
   });
@@ -1469,10 +1554,6 @@ document.addEventListener('click', function(e){
       renderHome();
       break;
     }
-    case 'swipe-toggle':
-      closeSwipes();
-      toggleTodo(id);
-      break;
     case 'swipe-del':
       closeSwipes();
       deleteTodo(id);
@@ -1490,6 +1571,21 @@ document.addEventListener('click', function(e){
       haptic(8);
       renderSheet({ kind:'settings' });
       // 编辑状态出现在「我的列表」分组里，保持当前滚动位置
+      break;
+    }
+    case 'theme':
+      UI.editing = false;
+      push('sheet', { kind:'theme' });
+      break;
+    case 'pick-theme': {
+      const t = el.dataset.theme;
+      if (t !== 'system' && t !== 'light' && t !== 'dark') break;
+      UI.theme = t;
+      saveUI();
+      applyTheme();
+      haptic(8);
+      back();
+      setTimeout(renderApp, 20);
       break;
     }
     case 'smart':
@@ -1654,7 +1750,7 @@ document.addEventListener('click', function(e){
       break;
     case 'add-todo-day':
       if (!DB.lists.length) { EDIT = null; push('editList', { isNew:true }); break; }
-      openTodoSheet(null, null, { date: calSelDate });
+      openTodoSheet(null, null, { date: el.dataset.date || calSelDate });
       break;
     case 'toggle-hide-done': {
       UI.hideDone = !UI.hideDone;
@@ -1732,11 +1828,15 @@ function saveTodoSheet(opts){
       t.date = date; t.time = time; t.listId = listId; t.starred = starred;
     }
   } else {
-    DB.todos.unshift({
+    // 该列表手动排过序时，新待办接在最后
+    const siblings = DB.todos.filter(t => t.listId === listId && !t.done && typeof t.order === 'number');
+    const todo = {
       id: uid(), listId: listId, title: title,
       note: note, progress: progress, date: date, time: time, starred: starred,
       done: false, doneAt: '', createdAt: Date.now()
-    });
+    };
+    if (siblings.length) todo.order = Math.max.apply(null, siblings.map(t => t.order)) + 1;
+    DB.todos.unshift(todo);
   }
   save();
   haptic(10);
@@ -2075,7 +2175,7 @@ function closeContextMenu(){
   if (host) host.remove();
 }
 
-/* 横向滑动：右滑完成、左滑删除 */
+/* 横向滑动：只支持左滑删除 */
 document.addEventListener('pointerdown', function(e){
   if (Date.now() < suppressClickUntil) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -2093,7 +2193,7 @@ document.addEventListener('pointerdown', function(e){
   swipeState = {
     wrap: wrap, body: body,
     x: e.clientX, y: e.clientY,
-    base: opened ? (wrap.classList.contains('is-left') ? SWIPE_OPEN : -SWIPE_OPEN) : 0,
+    base: opened ? -SWIPE_OPEN : 0,
     dx: 0, axis: null
   };
   body.addEventListener('pointermove', onSwipeMove);
@@ -2120,7 +2220,8 @@ function onSwipeMove(e){
   if (st.axis !== 'x') return;
   e.preventDefault();
   st.dx = dx;
-  const v = Math.max(-SWIPE_OPEN - 14, Math.min(SWIPE_OPEN + 14, st.base + dx));
+  // 只往左拉，右滑不跟手
+  const v = Math.min(0, Math.max(-SWIPE_OPEN - 14, st.base + dx));
   st.body.style.transform = 'translateX(' + v + 'px)';
 }
 
@@ -2136,7 +2237,6 @@ function onSwipeEnd(){
     const v = st.base + st.dx;
     st.wrap.classList.remove('is-open', 'is-left', 'is-right');
     if (v <= -SWIPE_OPEN / 2) st.wrap.classList.add('is-open', 'is-right');
-    else if (v >= SWIPE_OPEN / 2) st.wrap.classList.add('is-open', 'is-left');
     if (st.wrap.classList.contains('is-open')) haptic(10);
     suppressClickUntil = Date.now() + 320;
   }
@@ -2190,7 +2290,7 @@ function openContextMenu(id, x, y){
     '<div class="ctx-menu">' +
       '<button class="ctx-item" data-act="ctx-toggle" data-id="' + id + '">' +
         svg(t.done ? 'undo' : 'check') + '<span>' + (t.done ? '恢复为未完成' : '标记完成') + '</span></button>' +
-      '<button class="ctx-item" data-act="ctx-star" data-id="' + id + '">' + svg('star') +
+      '<button class="ctx-item" data-act="ctx-star" data-id="' + id + '">' + svg('flag') +
         '<span>' + (t.starred ? '取消旗标' : '标记为旗标') + '</span></button>' +
       '<button class="ctx-item" data-act="ctx-edit" data-id="' + id + '">' + svg('pen') + '<span>编辑</span></button>' +
       '<button class="ctx-item is-danger" data-act="ctx-del" data-id="' + id + '">' + svg('trash') + '<span>删除</span></button>' +
@@ -2270,8 +2370,21 @@ function bindStatic(){
     EDIT = null;
     push('editList', { isNew:true });
   });
-  $('#btnAddList').addEventListener('click', function(){
-    openTodoSheet(null, current().params.listId);
+  $('#btnListAdd').addEventListener('click', function(){
+    const cur = current();
+    if (cur.name !== 'list') return;
+    openTodoSheet(null, cur.params.listId);
+  });
+  $('#btnListSort').addEventListener('click', function(){
+    if (current().name !== 'list') return;
+    UI.sorting = !UI.sorting;
+    haptic(8);
+    renderApp();
+  });
+  $('#btnListDelete').addEventListener('click', function(){
+    const cur = current();
+    if (cur.name !== 'list') return;
+    deleteList(cur.params.listId);
   });
   $('#btnYearFilter').addEventListener('click', function(){
     push('sheet', { kind:'year' });
@@ -2283,9 +2396,6 @@ function bindStatic(){
   $('#btnSettingsCal').addEventListener('click', function(){
     UI.editing = false;
     push('sheet', { kind:'settings' });
-  });
-  $('#btnListMore').addEventListener('click', function(){
-    push('sheet', { kind:'listMenu', listId: current().params.listId });
   });
   $('#sheetMask').addEventListener('click', function(){ back(); });
 
@@ -2358,6 +2468,8 @@ function toast(msg, actionText, onAction){
    19. 启动
    ============================================================ */
 loadAll();
+applyTheme();
+bindThemeWatcher();
 bindStatic();
 syncColsIcon();
 renderApp();

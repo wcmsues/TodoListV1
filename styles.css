@@ -172,6 +172,8 @@ svg{display:block;}
 }
 .nav-head-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
 .nav-head > .circle-btn:last-child{margin-left:auto;}
+/* 列表详情只有一个返回按钮，不要被上一条规则推到右边 */
+.view[data-view="list"] .nav-head > .circle-btn:last-child{margin-left:0;}
 .nav-title{
   position:absolute;left:0;right:0;top:0;bottom:0;
   display:flex;align-items:center;justify-content:center;gap:7px;
@@ -246,17 +248,17 @@ svg{display:block;}
 .lc-meta svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .lc-meta .is-overdue{color:var(--red);}
 
-/* 加星标记：待办行右侧 */
-.star-mark{
+/* 旗标标记：待办行右侧（SF Symbols 旗标观感） */
+.flag-mark{
   flex:none;display:flex;align-items:flex-start;justify-content:center;
-  width:15px;color:#F2A93B;
+  width:15px;color:#FF9500;
 }
-.star-mark svg{
+.flag-mark svg{
   width:15px;height:15px;
-  fill:currentColor;stroke:currentColor;stroke-width:1.1;stroke-linejoin:round;
+  fill:currentColor;stroke:currentColor;stroke-width:2;stroke-linejoin:round;stroke-linecap:round;
 }
-.lc-item .star-mark{margin-top:1px;}
-.todo-row .star-mark{margin-top:2px;padding-bottom:14px;}
+.lc-item .flag-mark{margin-top:1px;}
+.todo-row .flag-mark{margin-top:2px;padding-bottom:14px;}
 .lc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
 .lc-note{
   margin-top:3px;font-size:11px;line-height:1.45;color:var(--text2);
@@ -348,6 +350,12 @@ svg{display:block;}
 .mini-btn:active{transform:scale(.93);}
 .mini-btn:disabled{opacity:.35;}
 .mini-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* 列表详情：待办列表右上角，与设置里「我的列表」一致 */
+.list-tools{
+  display:flex;align-items:center;justify-content:flex-end;gap:12px;
+  padding:8px 2px 8px;
+}
 
 .sort-hint[hidden]{display:none;}
 .sort-hint{
@@ -508,6 +516,7 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
   box-shadow:var(--shadow);
 }
 .danger-btn:active{background:#FFF1F0;}
+.danger-btn[hidden]{display:none;}
 
 /* 底部双按钮（取消 / 保存） */
 .sheet-actions{display:flex;gap:10px;margin-top:26px;}
@@ -560,14 +569,14 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .form-row input[type="date"].is-empty{color:transparent;}
 .form-row input[type="date"].is-empty::-webkit-datetime-edit{color:transparent;}
 
-/* 表单里的加星开关行（button 复用 form-row 布局） */
+/* 表单里的旗标开关行（button 复用 form-row 布局） */
 .form-row.star-row{
   width:100%;border:0;background:none;text-align:left;
   font:inherit;color:inherit;cursor:pointer;
   -webkit-tap-highlight-color:transparent;
 }
 .form-row.star-row:active{background:#F7F7FA;}
-.star-row.is-on svg.ri{stroke:#F2A93B;fill:rgba(242,169,59,.18);}
+.star-row.is-on svg.ri{stroke:#FF9500;fill:rgba(255,149,0,.18);}
 .clear-inline{
   flex:none;width:24px;height:24px;border-radius:50%;color:var(--text3);
   display:flex;align-items:center;justify-content:center;
@@ -706,15 +715,27 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .cal-day{margin-top:18px;}
 .cal-day:first-child{margin-top:4px;}
 .cal-day-head{
-  display:flex;align-items:center;gap:8px;width:100%;min-height:44px;
-  padding:0 4px 4px;text-align:left;
+  display:flex;align-items:center;gap:8px;min-height:44px;
+  padding:0 4px 4px;
+}
+.cal-day-open{
+  flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;
   transition:transform .16s ease,opacity .16s ease;
 }
-.cal-day-head:active{transform:scale(.98);opacity:.7;}
+.cal-day-open:active{transform:scale(.98);opacity:.7;}
 .cal-day-date{font-size:14px;font-weight:600;color:var(--text);}
 .cal-day-date.is-today{color:var(--blue);}
 .cal-day-wd{font-size:12.5px;color:var(--text2);}
 .cal-day-num{margin-left:auto;font-size:12px;color:var(--text3);font-variant-numeric:tabular-nums;}
+/* 这一天直接加待办 */
+.cal-day-add{
+  flex:none;width:28px;height:28px;border-radius:50%;
+  background:rgba(10,132,255,.12);color:var(--blue);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .16s ease,background .2s ease;
+}
+.cal-day-add:active{transform:scale(.9);background:rgba(10,132,255,.2);}
+.cal-day-add svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;}
 
 .cal-day-card{
   background:var(--card);border-radius:16px;overflow:hidden;
@@ -733,13 +754,13 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .cal-row-title:active{opacity:.55;}
 .cal-text{word-break:break-word;}
 .cal-row.is-done .cal-text{color:var(--text2);text-decoration:line-through;}
-.cal-star{
+.cal-flag{
   flex:none;display:inline-flex;align-items:center;
-  margin-right:4px;padding-top:2px;color:#F2A93B;
+  margin-right:4px;padding-top:2px;color:#FF9500;
 }
-.cal-star svg{
+.cal-flag svg{
   width:13px;height:13px;fill:currentColor;stroke:currentColor;
-  stroke-width:1.1;stroke-linejoin:round;
+  stroke-width:2;stroke-linejoin:round;stroke-linecap:round;
 }
 .cal-row-meta{
   display:flex;align-items:baseline;flex-wrap:wrap;gap:4px;min-width:0;
@@ -925,9 +946,10 @@ body{background:var(--page);}
 /* 滑动操作 */
 .swipe{position:relative;overflow:hidden;background:var(--card);}
 .swipe-actions{position:absolute;top:0;bottom:0;display:flex;pointer-events:none;}
-.swipe-actions.left{left:0;}
-.swipe-actions.right{right:0;}
+/* 滑开前不画红色底，避免横向拖动时透出来 */
+.swipe-actions.right{right:0;opacity:0;transition:opacity .16s ease;}
 .swipe.is-open .swipe-actions{pointer-events:auto;}
+.swipe.is-open.is-right .swipe-actions.right{opacity:1;}
 .swipe-btn{
   width:var(--sw);display:flex;align-items:center;justify-content:center;
   font-size:13.5px;font-weight:600;color:#fff;letter-spacing:.2px;
@@ -936,8 +958,6 @@ body{background:var(--page);}
   width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;
   stroke-linecap:round;stroke-linejoin:round;
 }
-.swipe-btn.is-done{background:#34C759;}
-.swipe-btn.is-restore{background:#8E8E93;}
 .swipe-btn.is-del{background:#FF3B30;}
 .swipe-body{
   position:relative;background:var(--card);touch-action:pan-y;
@@ -1017,7 +1037,6 @@ body{background:var(--page);}
 
 /* 滑动打开态 / 上下文菜单宿主 / Toast 撤销 */
 .swipe.is-open.is-right .swipe-body{transform:translateX(calc(var(--sw) * -1));}
-.swipe.is-open.is-left .swipe-body{transform:translateX(var(--sw));}
 .ctx-host{position:absolute;inset:0;z-index:60;}
 .toast{display:flex;align-items:center;gap:14px;font-size:14px;}
 .toast.show{pointer-events:auto;}
@@ -1041,6 +1060,12 @@ body{background:var(--page);}
 
 /* 分组标题右侧：编辑 + 新建 */
 .group-actions{display:flex;align-items:center;gap:12px;}
+.menu-item > span.menu-value{
+  flex:none;margin-left:auto;font-size:15px;color:var(--text2);
+}
+.menu-item svg.menu-arrow{
+  width:9px;height:15px;margin-left:2px;color:var(--text3);stroke-width:2.4;
+}
 .group-text{
   font-size:15px;color:var(--blue);padding:0 2px;
   transition:opacity .16s ease;
@@ -1056,35 +1081,37 @@ body{background:var(--page);}
 .group-add:active{transform:scale(.9);background:rgba(10,132,255,.2);}
 .group-add svg{width:16px;height:16px;stroke-width:2.6;}
 
-/* 深色模式 */
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#1C1C1E;
-    --card:#2C2C2E;
-    --text:#FFFFFF;
-    --text2:#9A9AA0;
-    --text3:#5E5E63;
-    --line:#38383A;
-    --blue:#0A84FF;
-    --seg:#2C2C2E;
-    --fill:#2C2C2E;
-    --fill-2:#3A3A3C;
-    --grab:#48484A;
-    --switch-track:#3A3A3C;
-    --tab-bg:rgba(28,28,30,.86);
-    --done-fill:#3A3A3C;
-    --page:#000000;
-    --shadow:0 0 0 .5px rgba(255,255,255,.08);
-    --shadow-md:0 8px 22px rgba(0,0,0,.5);
-    --shadow-lift:0 14px 32px rgba(0,0,0,.65);
-  }
-  body{background:#000;}
-  .dp-cell.is-out{color:#48484A;}
-  .toast{background:rgba(58,58,60,.94);}
-  .ctx-menu{background:rgba(44,44,46,.94);}
-  .list-card,.big-card,.cal-day-card{box-shadow:0 0 0 .5px rgba(255,255,255,.07);}
-  .sheet{background:#1C1C1E;}
-  .dp-panel{background:#1C1C1E;}
-  .sheet-mask,.dp-mask{background:rgba(0,0,0,.55);}
-  .segment,.cal-range{background:var(--seg);}
+/* 深色模式：设置里选「深色」，或「跟随系统」且系统为深色（由脚本写入 data-theme） */
+:root[data-theme="dark"]{
+  --bg:#1C1C1E;
+  --card:#2C2C2E;
+  --text:#FFFFFF;
+  --text2:#9A9AA0;
+  --text3:#5E5E63;
+  --line:#38383A;
+  --blue:#0A84FF;
+  --seg:#2C2C2E;
+  --fill:#2C2C2E;
+  --fill-2:#3A3A3C;
+  --grab:#48484A;
+  --switch-track:#3A3A3C;
+  --tab-bg:rgba(28,28,30,.86);
+  --done-fill:#3A3A3C;
+  --page:#000000;
+  --shadow:0 0 0 .5px rgba(255,255,255,.08);
+  --shadow-md:0 8px 22px rgba(0,0,0,.5);
+  --shadow-lift:0 14px 32px rgba(0,0,0,.65);
 }
+:root[data-theme="dark"] body{background:#000;}
+:root[data-theme="dark"] .dp-cell.is-out{color:#48484A;}
+:root[data-theme="dark"] .toast{background:rgba(58,58,60,.94);}
+:root[data-theme="dark"] .ctx-menu{background:rgba(44,44,46,.94);}
+:root[data-theme="dark"] .list-card,
+:root[data-theme="dark"] .big-card,
+:root[data-theme="dark"] .cal-day-card{box-shadow:0 0 0 .5px rgba(255,255,255,.07);}
+:root[data-theme="dark"] .sheet{background:#1C1C1E;}
+:root[data-theme="dark"] .dp-panel{background:#1C1C1E;}
+:root[data-theme="dark"] .sheet-mask,
+:root[data-theme="dark"] .dp-mask{background:rgba(0,0,0,.55);}
+:root[data-theme="dark"] .segment,
+:root[data-theme="dark"] .cal-range{background:var(--seg);}

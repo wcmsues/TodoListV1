@@ -3,8 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#F2F2F5" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#1C1C1E" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#F2F2F5" id="themeColor" />
+<script>
+/* 首屏就定好深浅色，避免闪一下 */
+(function(){
+  try {
+    var ui = JSON.parse(localStorage.getItem('todolist.v2.ui') || '{}');
+    var t = ui && ui.theme;
+    if (t !== 'light' && t !== 'dark' && t !== 'system') t = 'light';
+    if (t === 'system') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+    var m = document.getElementById('themeColor');
+    if (m) m.setAttribute('content', t === 'dark' ? '#1C1C1E' : '#F2F2F5');
+  } catch (e) { document.documentElement.dataset.theme = 'light'; }
+})();
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="format-detection" content="telephone=no" />
@@ -14,7 +27,7 @@
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="styles.css?v=20261102k" />
+<link rel="stylesheet" href="styles.css?v=20261102p" />
 </head>
 <body>
 
@@ -24,7 +37,7 @@
   <section class="view is-active" data-view="home">
     <header class="page-head">
       <div class="head-row">
-        <h1 class="page-title">卡片列表</h1>
+        <h1 class="page-title">待办清单</h1>
         <div class="head-actions">
           <button class="circle-btn is-primary" id="btnAdd" aria-label="添加待办">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -63,7 +76,7 @@
   <section class="view" data-view="calendar">
     <header class="page-head">
       <div class="head-row">
-        <h1 class="page-title">日历</h1>
+        <h1 class="page-title">日历视图</h1>
         <div class="head-actions">
           <button class="circle-btn" id="btnSettingsCal" aria-label="设置">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -132,20 +145,17 @@
         <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
       </button>
       <div class="nav-title" id="listTitle"></div>
-      <div class="nav-head-right">
-        <button class="circle-btn is-primary" id="btnAddList" aria-label="添加待办">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-        <button class="circle-btn" id="btnListMore" aria-label="更多">
-          <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
-        </button>
-      </div>
     </header>
     <div class="scroll" id="listScroll">
-      <div class="section-label"><span>待处理</span><span id="listCount">0</span></div>
+      <div class="list-tools">
+        <button class="group-text" id="btnListSort">编辑</button>
+        <button class="group-add" id="btnListAdd" aria-label="添加待办">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
       <div class="sort-hint" id="sortHint" hidden>
         <svg viewBox="0 0 24 24"><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/></svg>
-        按住待办可拖动排序，完成后点右上角 ⋯ 退出
+        按住待办拖动排序，点「完成」退出
       </div>
       <div class="big-card" id="listCard"></div>
       <div class="empty-state" id="listEmpty" hidden>
@@ -153,6 +163,7 @@
         <p>这个列表还没有待办</p>
         <small>添加第一个待办</small>
       </div>
+      <button class="danger-btn" id="btnListDelete">删除列表</button>
     </div>
   </section>
 
@@ -199,6 +210,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20261102k"></script>
+<script src="app.js?v=20261102p"></script>
 </body>
 </html>

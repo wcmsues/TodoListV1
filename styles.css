@@ -274,6 +274,13 @@ svg{display:block;}
 .tr-main .pbar-num{font-size:11.5px;}
 .tr-side{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-bottom:14px;}
 .tr-list-name{font-size:11.5px;color:var(--text2);white-space:nowrap;}
+/* 已完成行：列表图标在上、名称在下，整体垂直居中 */
+.tr-side.is-done-side{align-items:center;justify-content:center;padding-bottom:0;gap:3px;align-self:center;}
+.tr-list-icon{display:flex;align-items:center;justify-content:center;}
+.tr-list-icon svg{
+  width:16px;height:16px;fill:none;stroke:currentColor;
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
+}
 
 /* 行内排序按钮 */
 .tr-tools{display:none;gap:4px;margin-top:8px;}

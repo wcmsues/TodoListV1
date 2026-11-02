@@ -45,10 +45,9 @@
       <div class="board" id="board"></div>
       <div class="empty-state" id="homeEmpty" hidden>
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 9h8M8 13h5"/></svg>
-        <p>暂时没有待办</p>
-        <small>加载示例看看效果，或新建列表开始记录</small>
+        <p id="emptyTitle">暂时没有列表，请添加列表</p>
+        <small id="emptyHint">新建列表后，就可以往里面添加待办了</small>
         <div class="empty-actions">
-          <button class="primary-btn" data-act="load-demo">加载示例数据</button>
           <button class="ghost-btn" id="emptyAction" data-act="new-list">新建列表</button>
         </div>
       </div>

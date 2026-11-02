@@ -370,11 +370,16 @@ function renderHome(){
       })
     : DB.lists;
   $('#homeEmpty').hidden = lists.length > 0;
-  const emptyAction = $('#emptyAction');
-  if (emptyAction) {
-    const hasLists = DB.lists.length > 0;
-    emptyAction.dataset.act = hasLists ? 'add-todo' : 'new-list';
-    emptyAction.textContent = hasLists ? '新建待办事项' : '新建列表';
+  const hasLists = DB.lists.length > 0;
+  const emptyTitle = $('#emptyTitle');
+  const emptyHint = $('#emptyHint');
+  if (emptyTitle) {
+    emptyTitle.textContent = hasLists ? '暂时没有列表或列表为空' : '暂时没有列表，请添加列表';
+  }
+  if (emptyHint) {
+    emptyHint.textContent = hasLists
+      ? '新建一个列表，或到设置里关闭「隐藏空列表」'
+      : '新建列表后，就可以往里面添加待办了';
   }
   if (!lists.length) { board.innerHTML = ''; return; }
 
@@ -461,7 +466,10 @@ function doneRowHTML(t){
       '<div class="tr-title" style="margin-top:3px">' + esc(t.title) + '</div>' +
       noteHTML(t, 'tr-note') +
     '</div>' +
-    '<div class="tr-side"><span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
+    '<div class="tr-side is-done-side">' +
+      '<span class="tr-list-icon" style="color:' + (list ? list.color : 'var(--text2)') + '">' +
+        svg(list ? list.icon : 'list') + '</span>' +
+      '<span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
   '</div>';
 }
 
@@ -1385,8 +1393,10 @@ function bindStatic(){
     UI.editing = false;
     push('sheet', { kind:'settings' });
   });
+  // 首页右上角只负责新建列表；待办在各列表卡片 / 列表详情里添加
   $('#btnAdd').addEventListener('click', function(){
-    openTodoSheet(null, null);
+    EDIT = null;
+    push('editList', { isNew:true });
   });
   $('#btnAddList').addEventListener('click', function(){
     openTodoSheet(null, current().params.listId);

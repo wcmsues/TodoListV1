@@ -449,6 +449,29 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 }
 .danger-btn:active{background:#FFF1F0;}
 
+/* 底部双按钮（取消 / 保存） */
+.sheet-actions{display:flex;gap:10px;margin-top:26px;}
+.sheet-actions > .ghost-btn,
+.sheet-actions > .primary-btn{
+  flex:1 1 0;width:auto;margin-top:0;height:50px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+}
+.sheet-actions > .primary-btn{box-shadow:0 6px 16px rgba(10,132,255,.3);}
+
+/* 待办详情弹窗 */
+.todo-detail{
+  background:var(--card);border-radius:16px;box-shadow:var(--shadow);
+  padding:18px 16px;margin-top:8px;
+}
+.todo-detail-title{
+  font-size:19px;font-weight:600;line-height:1.35;letter-spacing:-.2px;
+  color:var(--text);word-break:break-word;
+}
+.todo-detail-title.is-done{color:var(--text3);text-decoration:line-through;}
+.todo-detail-date{display:flex;align-items:center;gap:5px;margin-top:10px;font-size:13.5px;color:var(--text2);}
+.todo-detail-date svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.todo-detail-date .is-overdue{color:var(--red);}
+
 /* ============================================================
    7. 待办编辑表单
    ============================================================ */

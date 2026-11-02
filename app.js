@@ -68,6 +68,7 @@ const ICONS = {
   plus:'<path d="M12 5v14M5 12h14"/>',
   minus:'<path d="M5 12h14"/>',
   check:'<path d="M5 12.5l4.5 4.5L19 7"/>',
+  close:'<path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4"/>',
   arrowUp:'<path d="M12 19V5M6 11l6-6 6 6"/>',
   arrowDown:'<path d="M12 5v14M6 13l6 6 6-6"/>',
   sort:'<path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/>',
@@ -397,7 +398,10 @@ function syncSegment(){
 /* ---------- 首页 ---------- */
 function renderHome(){
   const board = $('#board');
-  const lists = DB.lists;
+  // 只显示还有未完成待办的列表，空列表不在首页占位（仍可在设置中管理）
+  const lists = DB.lists.filter(function(l){
+    return DB.todos.some(function(t){ return t.listId === l.id && !t.done; });
+  });
   $('#homeEmpty').hidden = lists.length > 0;
   if (!lists.length) { board.innerHTML = ''; return; }
 
@@ -553,6 +557,7 @@ function renderSheet(p){
 
   if (p.kind === 'settings') sheet.innerHTML = settingsHTML();
   else if (p.kind === 'todo') sheet.innerHTML = todoSheetHTML(p);
+  else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
@@ -644,6 +649,39 @@ function gRow(o){
   '</div>';
 }
 
+/* ---------- 待办详情（点开待办后的操作面板） ---------- */
+function todoViewHTML(p){
+  const t = findTodo(p.todoId);
+  const head = grab() +
+    '<div class="sheet-head">' +
+      '<h2 class="sheet-title">待办详情</h2>' +
+      '<button class="circle-btn" data-act="close-sheet" aria-label="关闭">' + svg('close') + '</button>' +
+    '</div>';
+
+  if (!t) {
+    return head + '<div class="sheet-body">' +
+      '<div class="todo-detail"><div class="todo-detail-title">该待办已被删除</div></div>' +
+      '</div>';
+  }
+
+  return head +
+    '<div class="sheet-body">' +
+      '<div class="todo-detail">' +
+        '<div class="todo-detail-title' + (t.done ? ' is-done' : '') + '">' + esc(t.title) + '</div>' +
+        '<div class="todo-detail-date">' + svg('calendar') +
+          '<span class="' + (isOverdue(t) ? 'is-overdue' : '') + '">' +
+            (t.date ? esc(fmtDate(t.date)) : '未设置日期') +
+          '</span></div>' +
+      '</div>' +
+      '<div class="menu-card" style="margin-top:16px">' +
+        '<button class="menu-item" data-act="todo-edit" data-id="' + t.id + '">' + svg('pen') +
+          '<span>编辑这个待办</span></button>' +
+        '<button class="menu-item is-danger" data-act="todo-remove" data-id="' + t.id + '">' + svg('trash') +
+          '<span>删除这个待办</span></button>' +
+      '</div>' +
+    '</div>';
+}
+
 /* ---------- 待办编辑 ---------- */
 function todoSheetHTML(p){
   const f = SHEET.form;
@@ -651,7 +689,7 @@ function todoSheetHTML(p){
   return grab() +
     '<div class="sheet-head">' +
       '<h2 class="sheet-title">' + (isNew ? '新建待办' : '编辑待办') + '</h2>' +
-      '<button class="circle-btn is-primary" data-act="todo-save" aria-label="保存">' + svg('check') + '</button>' +
+      '<button class="circle-btn" data-act="close-sheet" aria-label="关闭">' + svg('close') + '</button>' +
     '</div>' +
     '<div class="sheet-body">' +
       '<input class="title-field" id="todoTitle" placeholder="要做什么？" maxlength="120" value="' + esc(f.title) + '" />' +
@@ -673,7 +711,10 @@ function todoSheetHTML(p){
       '<div class="form-card"><div class="picker" id="tagPicker">' + tagPickerHTML() + '</div></div>' +
       '<div class="field-label">所属列表</div>' +
       '<div class="form-card"><div class="picker" id="listPicker">' + listPickerHTML() + '</div></div>' +
-      (isNew ? '' : '<button class="danger-btn" data-act="todo-delete">删除待办</button>') +
+      '<div class="sheet-actions">' +
+        '<button class="ghost-btn" data-act="close-sheet">取消</button>' +
+        '<button class="primary-btn" data-act="todo-save">' + (isNew ? '保存' : '保存修改') + '</button>' +
+      '</div>' +
     '</div>';
 }
 
@@ -898,7 +939,7 @@ document.addEventListener('click', function(e){
     case 'add-todo': openTodoSheet(null, el.dataset.list); break;
     case 'edit-todo':
       if (UI.sorting) break;
-      openTodoSheet(id); break;
+      openTodoView(id); break;
     case 'toggle': toggleTodo(id); break;
     case 'up': {
       const lid = id ? (findTodo(id) || {}).listId : '';
@@ -964,10 +1005,22 @@ document.addEventListener('click', function(e){
       break;
     case 'clear-date': SHEET.form.date = ''; renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId }); break;
     case 'todo-save': saveTodoSheet(); break;
-    case 'todo-delete': {
-      const t = SHEET.todoId;
-      SHEET = null; back();
-      setTimeout(function(){ deleteTodo(t); }, 30);
+    case 'todo-edit': {
+      // 详情面板 → 编辑表单，替换当前弹层，关闭后直接回到原页面
+      const cur = current();
+      if (!cur || cur.name !== 'sheet') break;
+      cur.params = { kind:'todo', todoId:id, _t: uid() };
+      SHEET = null;
+      renderApp();
+      break;
+    }
+    case 'todo-remove': {
+      const todo = findTodo(id);
+      if (!todo) break;
+      if (!window.confirm('删除待办「' + todo.title + '」？')) break;
+      SHEET = null;
+      back();
+      setTimeout(function(){ deleteTodo(id); }, 30);
       break;
     }
 
@@ -1022,6 +1075,10 @@ document.addEventListener('change', function(e){
 function openTodoSheet(todoId, listId){
   if (!DB.lists.length) { toast('请先在设置中新建一个列表'); push('sheet', { kind:'settings' }); return; }
   push('sheet', { kind:'todo', todoId: todoId || null, listId: listId || null, _t: uid() });
+}
+function openTodoView(todoId){
+  if (!findTodo(todoId)) return;
+  push('sheet', { kind:'todoView', todoId: todoId, _t: uid() });
 }
 function saveTodoSheet(){
   if (!SHEET) return;

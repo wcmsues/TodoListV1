@@ -13,7 +13,7 @@
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="styles.css?v=20261102" />
+<link rel="stylesheet" href="styles.css?v=20261102d" />
 </head>
 <body>
 
@@ -38,6 +38,7 @@
       </div>
       <div class="segment">
         <button class="segment-item is-active" data-tab="home">待办事项</button>
+        <button class="segment-item" data-tab="calendar">日历</button>
         <button class="segment-item" data-tab="done">已完成</button>
       </div>
     </header>
@@ -50,6 +51,44 @@
         <div class="empty-actions">
           <button class="ghost-btn" id="emptyAction" data-act="new-list">新建列表</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 日历 ================= -->
+  <section class="view" data-view="calendar">
+    <header class="page-head">
+      <div class="head-row">
+        <h1 class="page-title">日历</h1>
+        <div class="head-actions">
+          <button class="circle-btn" id="btnSettingsCal" aria-label="设置">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="segment">
+        <button class="segment-item" data-tab="home">待办事项</button>
+        <button class="segment-item is-active" data-tab="calendar">日历</button>
+        <button class="segment-item" data-tab="done">已完成</button>
+      </div>
+      <div class="cal-bar">
+        <div class="cal-range" id="calRange">
+          <button class="cal-range-item" data-act="cal-range" data-range="day">今日</button>
+          <button class="cal-range-item is-active" data-act="cal-range" data-range="week">本周</button>
+          <button class="cal-range-item" data-act="cal-range" data-range="month">本月</button>
+        </div>
+        <button class="cal-hide" data-act="toggle-cal-done" aria-label="隐藏已完成事项">
+          <span class="cal-hide-lbl">隐藏已完成</span>
+          <span class="switch" id="calHideSwitch"></span>
+        </button>
+      </div>
+    </header>
+    <div class="scroll" id="calScroll">
+      <div class="section-label"><span id="calRangeLabel">本周</span><span id="calCount">0</span></div>
+      <div id="calBody"></div>
+      <div class="empty-state" id="calEmpty" hidden>
+        <svg viewBox="0 0 24 24"><rect x="3.6" y="5" width="16.8" height="15.4" rx="3.2"/><path d="M8 3v3.4M16 3v3.4M3.6 10h16.8"/></svg>
+        <p id="calEmptyText">这段时间没有安排</p>
       </div>
     </div>
   </section>
@@ -70,6 +109,7 @@
       </div>
       <div class="segment">
         <button class="segment-item" data-tab="home">待办事项</button>
+        <button class="segment-item" data-tab="calendar">日历</button>
         <button class="segment-item is-active" data-tab="done">已完成</button>
       </div>
       <div class="chips" id="doneChips"></div>
@@ -139,6 +179,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20261102"></script>
+<script src="app.js?v=20261102d"></script>
 </body>
 </html>

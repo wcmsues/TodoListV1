@@ -523,23 +523,16 @@ function renderSheet(p){
     const t = p.todoId ? findTodo(p.todoId) : null;
     let form;
     if (t) {
-      const list = findList(t.listId);
       form = {
         title: t.title, note: t.note || '', progress: t.progress || 0,
-        date: t.date, listId: t.listId,
-        listName: list ? list.name : ''
+        date: t.date, listId: t.listId
       };
     } else {
-      // 从某个列表里点添加时预填该列表；从首页右上角新建则留空，显示输入提示
-      const lid = p.listId || '';
-      const list = lid ? findList(lid) : null;
-      form = {
-        title:'', note:'', progress:0, date:'',
-        listId: lid, listName: list ? list.name : ''
-      };
+      // 所属列表只能从已有列表里选，默认选中第一个
+      const lid = (p.listId && findList(p.listId)) ? p.listId : ((DB.lists[0] && DB.lists[0].id) || '');
+      form = { title:'', note:'', progress:0, date:'', listId: lid };
     }
-    // pendingDate：在日期选择器里选中但还没点「保存」的日子，保存时才真正写入
-    SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form, pendingDate: null };
+    SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
   if (p.kind !== 'todo' && SHEET && SHEET.kind === 'todo' && SHEET._t !== p._t) SHEET = null;
 
@@ -662,8 +655,7 @@ function todoViewHTML(p){
 function todoSheetHTML(p){
   const f = SHEET.form;
   const isNew = !SHEET.todoId;
-  // 已选但未保存的日期优先显示，点「保存」后才写回表单
-  const dateVal = (SHEET.pendingDate === null ? f.date : SHEET.pendingDate) || '';
+  const dateVal = f.date || '';
   return grab() +
     '<div class="sheet-head">' +
       '<h2 class="sheet-title">' + (isNew ? '新建待办' : '编辑待办') + '</h2>' +
@@ -689,13 +681,7 @@ function todoSheetHTML(p){
         '<span class="progress-val" id="progressVal">' + f.progress + '%</span>' +
       '</div></div>' +
       '<div class="field-label">所属列表</div>' +
-      '<div class="form-card">' +
-        '<div class="form-row">' + svg('folder', 'ri') +
-          '<input class="list-name-input" id="todoListName" placeholder="输入列表名，不存在会自动创建" ' +
-            'maxlength="20" autocomplete="off" value="' + esc(f.listName) + '" />' +
-        '</div>' +
-        (DB.lists.length ? '<div class="picker" id="listPicker" style="padding:0 14px 14px">' + listPickerHTML() + '</div>' : '') +
-      '</div>' +
+      '<div class="form-card"><div class="picker" id="listPicker">' + listPickerHTML() + '</div></div>' +
       '<div class="sheet-actions">' +
         '<button class="ghost-btn" data-act="close-sheet">取消</button>' +
         '<button class="primary-btn" data-act="todo-save">' + (isNew ? '保存' : '保存修改') + '</button>' +
@@ -935,17 +921,13 @@ document.addEventListener('click', function(e){
 
     /* 待办表单 */
     case 'pick-list': {
-      const l = findList(id);
       SHEET.form.listId = id;
-      SHEET.form.listName = l ? l.name : '';
-      const inp = $('#todoListName');
-      if (inp) inp.value = SHEET.form.listName;
-      const lp = $('#listPicker'); if (lp) lp.innerHTML = listPickerHTML();
+      const lp = $('#listPicker');
+      if (lp) lp.innerHTML = listPickerHTML();
       break;
     }
     case 'clear-date':
       SHEET.form.date = '';
-      SHEET.pendingDate = '';
       renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
       break;
 
@@ -1004,17 +986,6 @@ document.addEventListener('input', function(e){
     return;
   }
   if (el.id === 'todoDate') { dateDirty = true; return; }
-  if (el.id === 'todoListName' && SHEET) {
-    SHEET.form.listName = el.value;
-    const key = el.value.trim().toLowerCase();
-    const hit = key ? DB.lists.filter(function(l){
-      return String(l.name || '').trim().toLowerCase() === key;
-    })[0] : null;
-    SHEET.form.listId = hit ? hit.id : '';
-    const lp = $('#listPicker');
-    if (lp) lp.innerHTML = listPickerHTML();
-    return;
-  }
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
 });
 document.addEventListener('focusin', function(e){
@@ -1027,12 +998,11 @@ document.addEventListener('change', function(e){
   const el = e.target;
   if (el.id !== 'todoDate' || !SHEET) return;
   const val = el.value;
-  const shown = SHEET.pendingDate === null ? SHEET.form.date : SHEET.pendingDate;
+  const shown = SHEET.form.date || '';
   // 打开空日期输入时，Safari 可能直接回填「今天」；没有真正选择过就丢弃这次变更
   const untouchedToday = !shown && val === todayISO() && !dateDirty && (Date.now() - dateOpenAt) < 1200;
-  if (untouchedToday) { el.value = shown || ''; return; }
-  // 只记为待保存，等点「保存」再写入
-  SHEET.pendingDate = val;
+  if (untouchedToday) { el.value = shown; return; }
+  SHEET.form.date = val;
   renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
 });
 
@@ -1041,25 +1011,6 @@ document.addEventListener('change', function(e){
    ============================================================ */
 function openTodoSheet(todoId, listId){
   push('sheet', { kind:'todo', todoId: todoId || null, listId: listId || null, _t: uid() });
-}
-/* 根据表单里填写的列表名解析所属列表：同名复用，否则自动新建 */
-function resolveListForForm(f){
-  const typed = String(f.listName || '').trim().slice(0, 20);
-  const key = typed.toLowerCase();
-  if (key) {
-    const hit = DB.lists.filter(function(l){
-      return String(l.name || '').trim().toLowerCase() === key;
-    })[0];
-    if (hit) return hit.id;
-  }
-  if (f.listId && findList(f.listId)) return f.listId;
-  if (!key) return '';
-  const list = {
-    id: uid(), name: typed, icon: 'list',
-    color: PALETTE[DB.lists.length % PALETTE.length]
-  };
-  DB.lists.push(list);
-  return list.id;
 }
 function openTodoView(todoId){
   if (!findTodo(todoId)) return;
@@ -1070,14 +1021,11 @@ function saveTodoSheet(){
   const f = SHEET.form;
   const title = String(f.title || '').trim();
   if (!title) { toast('请输入待办内容'); return; }
-  const listCountBefore = DB.lists.length;
-  const listId = resolveListForForm(f);
-  const createdList = DB.lists.length > listCountBefore;
-  if (!listId) { toast('请填写所属列表'); return; }
+  const listId = f.listId && findList(f.listId) ? f.listId : '';
+  if (!listId) { toast('请选择所属列表'); return; }
   const note = String(f.note || '').trim().slice(0, 500);
   const progress = Math.max(0, Math.min(100, Math.round(Number(f.progress) || 0)));
-  // 点「保存」时才把选好的日期真正写入
-  const date = SHEET.pendingDate === null ? f.date : SHEET.pendingDate;
+  const date = f.date;
   if (SHEET.todoId) {
     const t = findTodo(SHEET.todoId);
     if (t) {
@@ -1095,7 +1043,7 @@ function saveTodoSheet(){
   const addAnother = SHEET && !SHEET.todoId;
   SHEET = null;
   back();
-  toast(createdList ? '已自动创建列表并添加' : (addAnother ? '已添加' : '已保存'));
+  toast(addAnother ? '已添加' : '已保存');
 }
 
 /* ============================================================

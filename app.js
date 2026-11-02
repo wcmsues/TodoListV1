@@ -146,62 +146,46 @@ let suppressClickUntil = 0;
    ============================================================ */
 function seed(){
   const L = [
-    { id:'l1', name:'收集箱', icon:'box',    color:PALETTE[0] },
-    { id:'l2', name:'自媒体', icon:'megaphone',color:PALETTE[2] },
-    { id:'l3', name:'工作',   icon:'clipboard',color:PALETTE[10] },
-    { id:'l4', name:'看书',   icon:'book',     color:PALETTE[6] },
-    { id:'l5', name:'电影',   icon:'clapper',  color:PALETTE[4] },
-    { id:'l6', name:'购物',   icon:'cart',     color:PALETTE[12] }
-  ];
-  const T = [
-    { id:'t1', name:'运营', color:PALETTE[10] },
-    { id:'t2', name:'写作', color:PALETTE[2] },
-    { id:'t3', name:'生活', color:PALETTE[0] }
+    { id:'l1', name:'工作', icon:'clipboard', color:PALETTE[10] },
+    { id:'l2', name:'学习', icon:'cap',       color:PALETTE[6] },
+    { id:'l3', name:'生活', icon:'home',      color:PALETTE[4] },
+    { id:'l4', name:'购物', icon:'cart',      color:PALETTE[12] },
+    { id:'l5', name:'电影', icon:'clapper',   color:PALETTE[2] }
   ];
   let n = 0;
-  const mk = (listId, title, date, tags, done, doneAt, note, progress) => ({
-    id:'s' + (++n), listId, title, date: date || '', tags: tags || [],
+  const mk = (listId, title, date, done, doneAt, note, progress) => ({
+    id:'s' + (++n), listId, title, date: date || '',
     note: note || '', progress: progress || 0,
     done: !!done, doneAt: doneAt || '', createdAt: Date.now() - n * 60000
   });
   const todos = [
-    mk('l1','订购桶装水', isoOffset(-1), ['t3']),
-    mk('l1','洗衣服', '', ['t3']),
-    mk('l2','学习如何写文章', isoOffset(3)),
-    mk('l2','八月份选题计划', isoOffset(12)),
-    mk('l2','发一篇图文笔记', isoOffset(1), ['t1','t2']),
-    mk('l2','学习剪辑视频', ''),
-    mk('l2','找时间统一回复私信', ''),
-    mk('l2','寻找垂直领域优秀创作者', ''),
-    mk('l3','ASO 学习', isoOffset(-2), ['t1']),
-    mk('l3','设计新 APP 原型', ''),
-    mk('l4','小王子', ''),
-    mk('l4','活着', ''),
-    mk('l4','傲慢与偏见', ''),
-    mk('l5','教父', ''),
-    mk('l5','无间道', isoOffset(4)),
-    mk('l5','让子弹飞', ''),
-    mk('l6','买花生油', isoOffset(5), ['t3']),
-    mk('l5','星际穿越', '', [], true, isoOffset(-3)),
-    mk('l1','收拾杂物箱', '', [], true, isoOffset(-3)),
-    mk('l4','War and Peace', '', [], true, isoOffset(-3)),
-    mk('l3','AI 视频学习', '', [], true, isoOffset(-3)),
-    mk('l4','The Great Gatsby', '', [], true, isoOffset(-320)),
-    mk('l4','Wuthering Heights', '', [], true, isoOffset(-520)),
-    mk('l1','买一把好用的拖把', isoOffset(-540), ['t3'], true, isoOffset(-540))
+    /* 工作 */
+    mk('l1','写本周周报', isoOffset(1), false, '', '汇总进度、风险与下周计划', 60),
+    mk('l1','回复客户需求邮件', isoOffset(-1)),
+    mk('l1','整理产品需求文档', '', false, '', '先补充核心流程与边界情况', 35),
+    mk('l1','准备下周评审材料', isoOffset(4)),
+    mk('l1','提交上月报销单', '', true, isoOffset(-2)),
+    /* 学习 */
+    mk('l2','读完《深度工作》第 3 章', '', false, '', '每天 20 页，读完写三句总结', 45),
+    mk('l2','英语听力练习 30 分钟', isoOffset(1)),
+    mk('l2','整理笔记到知识库', isoOffset(3), false, '', '按主题归档，补上标签页目录', 20),
+    mk('l2','完成 CSS 布局课程', '', true, isoOffset(-5)),
+    /* 生活 */
+    mk('l3','预约一次牙医', isoOffset(2)),
+    mk('l3','缴纳水电费', isoOffset(-1), false, '', '月底前缴清，避免滞纳金'),
+    mk('l3','周末大扫除', isoOffset(3), false, '', '厨房、卫生间、阳台三个区域'),
+    mk('l3','换洗床单被套', '', true, isoOffset(-1)),
+    /* 购物 */
+    mk('l4','买牛奶和鸡蛋', isoOffset(1)),
+    mk('l4','买一个收纳盒', ''),
+    mk('l4','补货洗衣液', ''),
+    mk('l4','买酱油', '', true, isoOffset(-3)),
+    /* 电影 */
+    mk('l5','看《星际穿越》', ''),
+    mk('l5','看《让子弹飞》', '', false, '', '周末和朋友一起看'),
+    mk('l5','看《肖申克的救赎》', '', true, isoOffset(-10))
   ];
-  const setDemoDetail = (title, note, progress) => {
-    const t = todos.find(x => x.title === title);
-    if (t) { t.note = note || ''; t.progress = progress || 0; }
-  };
-  setDemoDetail('学习如何写文章', '参考爆款结构：开头钩子 + 3 个干货点 + 行动号召', 40);
-  setDemoDetail('八月份选题计划', '按「热点 / 干货 / 生活」三类各准备 4 个选题', 20);
-  setDemoDetail('设计新 APP 原型', '先画低保真流程图，再出视觉稿', 60);
-  setDemoDetail('ASO 学习', '重点看关键词覆盖与转化率', 30);
-  setDemoDetail('小王子', '读到第 12 章了', 75);
-  setDemoDetail('让子弹飞', '和朋友约周末一起看');
-  setDemoDetail('订购桶装水', '送水电话 400-000-1234');
-  return { version:2, lists:L, tags:T, todos };
+  return { version:2, lists:L, tags:[], todos };
 }
 
 function normalizeDB(raw){
@@ -216,16 +200,7 @@ function normalizeDB(raw){
       color: /^#[0-9a-fA-F]{3,8}$/.test(l.color || '') ? l.color : PALETTE[0]
     });
   });
-  (Array.isArray(raw.tags) ? raw.tags : []).forEach(t => {
-    if (!t || typeof t !== 'object') return;
-    out.tags.push({
-      id: t.id || uid(),
-      name: String(t.name || '标签').slice(0, 40),
-      color: /^#[0-9a-fA-F]{3,8}$/.test(t.color || '') ? t.color : PALETTE[0]
-    });
-  });
   const listIds = out.lists.map(l => l.id);
-  const tagIds = out.tags.map(t => t.id);
   (Array.isArray(raw.todos) ? raw.todos : []).forEach(t => {
     if (!t || typeof t !== 'object') return;
     const title = String(t.title || '').trim();
@@ -237,7 +212,6 @@ function normalizeDB(raw){
       date: /^\d{4}-\d{2}-\d{2}$/.test(t.date || '') ? t.date : '',
       note: typeof t.note === 'string' ? t.note.slice(0, 500) : '',
       progress: Math.max(0, Math.min(100, Math.round(Number(t.progress) || 0))),
-      tags: (Array.isArray(t.tags) ? t.tags : []).filter(id => tagIds.indexOf(id) >= 0),
       done: !!t.done,
       doneAt: /^\d{4}-\d{2}-\d{2}$/.test(t.doneAt || '') ? t.doneAt : (t.done ? todayISO() : ''),
       createdAt: Number(t.createdAt) || Date.now()
@@ -311,22 +285,10 @@ function loadAll(){
    6. 查询
    ============================================================ */
 const findList = id => DB.lists.find(l => l.id === id);
-const findTag  = id => DB.tags.find(t => t.id === id);
 const findTodo = id => DB.todos.find(t => t.id === id);
 const openTodos = listId => DB.todos.filter(t => t.listId === listId && !t.done);
 function todoColor(t, fallback){
-  const first = (t.tags || []).map(findTag).filter(Boolean)[0];
-  return first ? first.color : (fallback || PALETTE[0]);
-}
-function tagPill(tagId){
-  const tg = findTag(tagId);
-  if (!tg) return '';
-  return '<span class="tag-pill" style="color:' + tg.color + ';background:' + hexRgba(tg.color, .13) + '">' + esc(tg.name) + '</span>';
-}
-function tagsHTML(t){
-  if (!t.tags || !t.tags.length) return '';
-  const pills = t.tags.map(tagPill).join('');
-  return pills ? '<div class="lc-tags">' + pills + '</div>' : '';
+  return fallback || PALETTE[0];
 }
 function noteHTML(t, cls){
   if (!t.note) return '';
@@ -388,8 +350,6 @@ function renderApp(){
     activateView('list'); renderList(base.params.listId);
   } else if (base.name === 'editList') {
     activateView('editList'); renderEditList(base.params);
-  } else if (base.name === 'editTag') {
-    activateView('editTag'); renderEditTag(base.params);
   }
 
   if (sheetState) renderSheet(sheetState.params);
@@ -459,7 +419,6 @@ function cardItemHTML(t, list){
       noteHTML(t) +
       progressHTML(t, c) +
       metaHTML(t) +
-      tagsHTML(t) +
     '</div></div>';
 }
 
@@ -501,7 +460,6 @@ function doneRowHTML(t){
         '<span>' + fmtDate(t.doneAt || t.date) + '</span></div>' +
       '<div class="tr-title" style="margin-top:3px">' + esc(t.title) + '</div>' +
       noteHTML(t, 'tr-note') +
-      (t.tags && t.tags.length ? '<div class="tr-tags">' + t.tags.map(tagPill).join('') + '</div>' : '') +
     '</div>' +
     '<div class="tr-side"><span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
   '</div>';
@@ -535,7 +493,6 @@ function listRowHTML(t, list, i, total){
       noteHTML(t, 'tr-note') +
       progressHTML(t, c) +
       metaHTML(t, 'tr-meta') +
-      (t.tags && t.tags.length ? '<div class="tr-tags">' + t.tags.map(tagPill).join('') + '</div>' : '') +
       '<div class="tr-tools">' +
         '<button class="mini-btn" data-act="up" data-id="' + t.id + '"' + (i === 0 ? ' disabled' : '') + '>' + svg('arrowUp') + '</button>' +
         '<button class="mini-btn" data-act="down" data-id="' + t.id + '"' + (i === total - 1 ? ' disabled' : '') + '>' + svg('arrowDown') + '</button>' +
@@ -561,7 +518,7 @@ function renderSheet(p){
       const list = findList(t.listId);
       form = {
         title: t.title, note: t.note || '', progress: t.progress || 0,
-        date: t.date, tags: t.tags.slice(), listId: t.listId,
+        date: t.date, listId: t.listId,
         listName: list ? list.name : ''
       };
     } else {
@@ -569,11 +526,12 @@ function renderSheet(p){
       const lid = p.listId || '';
       const list = lid ? findList(lid) : null;
       form = {
-        title:'', note:'', progress:0, date:'', tags:[],
+        title:'', note:'', progress:0, date:'',
         listId: lid, listName: list ? list.name : ''
       };
     }
-    SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
+    // pendingDate：在日期选择器里选中但还没点「保存」的日子，保存时才真正写入
+    SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form, pendingDate: null };
   }
   if (p.kind !== 'todo' && SHEET && SHEET.kind === 'todo' && SHEET._t !== p._t) SHEET = null;
 
@@ -619,17 +577,6 @@ function settingsHTML(){
     });
   }).join('') || '<div class="g-row"><div class="g-main" style="color:#C7C7CC;font-size:14px">暂无列表，点右上角 + 新建</div></div>';
 
-  const tagRows = DB.tags.map(t => {
-    const n = DB.todos.filter(x => x.tags && x.tags.indexOf(t.id) >= 0).length;
-    return gRow({
-      id: t.id,
-      attrs:'data-act="open-edit-tag" data-id="' + t.id + '"',
-      icon:'tag', color:t.color, name:t.name, num:n,
-      del:'data-act="del-tag" data-id="' + t.id + '"',
-      handle:true
-    });
-  }).join('') || '<div class="g-row"><div class="g-main" style="color:#C7C7CC;font-size:14px">暂无标签，点右上角 + 新建</div></div>';
-
   return grab() +
     '<div class="sheet-head">' +
       '<h2 class="sheet-title">设置</h2>' +
@@ -639,7 +586,7 @@ function settingsHTML(){
       '<div class="group"><div class="group-head"><span>管理</span></div>' +
         '<div class="group-card">' +
           '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
-            '<span>' + (UI.editing ? '完成编辑' : '编辑列表与标签') + '</span></button>' +
+            '<span>' + (UI.editing ? '完成编辑' : '编辑列表') + '</span></button>' +
           '<button class="menu-item" data-act="toggle-hide-empty">' + svg('list') +
             '<span>隐藏空列表</span>' +
             '<span class="switch' + (UI.hideEmpty ? ' is-on' : '') + '"></span></button>' +
@@ -647,9 +594,6 @@ function settingsHTML(){
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button></div>' +
         '<div class="group-card" data-reorder="list">' + listRows + '</div></div>' +
-      '<div class="group"><div class="group-head"><span>我的标签</span>' +
-        '<button class="group-add" data-act="new-tag" aria-label="新建标签">' + svg('plus') + '</button></div>' +
-        '<div class="group-card" data-reorder="tag">' + tagRows + '</div></div>' +
       '<div class="group"><div class="group-head"><span>数据</span></div>' +
         '<div class="group-card">' +
           '<button class="menu-item" data-act="load-demo">' + svg('bulb') + '<span>加载示例数据</span></button>' +
@@ -710,6 +654,8 @@ function todoViewHTML(p){
 function todoSheetHTML(p){
   const f = SHEET.form;
   const isNew = !SHEET.todoId;
+  // 已选但未保存的日期优先显示，点「保存」后才写回表单
+  const dateVal = (SHEET.pendingDate === null ? f.date : SHEET.pendingDate) || '';
   return grab() +
     '<div class="sheet-head">' +
       '<h2 class="sheet-title">' + (isNew ? '新建待办' : '编辑待办') + '</h2>' +
@@ -723,10 +669,10 @@ function todoSheetHTML(p){
       '<div class="form-card"><div class="form-row">' + svg('calendar', 'ri') +
         '<span class="lbl">日期</span>' +
         '<div class="date-cell">' +
-          '<input type="date" id="todoDate" class="' + (f.date ? '' : 'is-empty') + '" value="' + esc(f.date) + '" />' +
-          (f.date ? '' : '<span class="date-hint">未设置，点击选择</span>') +
+          '<input type="date" id="todoDate" class="' + (dateVal ? '' : 'is-empty') + '" value="' + esc(dateVal) + '" />' +
+          (dateVal ? '' : '<span class="date-hint">未设置，点击选择</span>') +
         '</div>' +
-        (f.date ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
+        (dateVal ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
           '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
       '</div></div>' +
       '<div class="field-label">进度</div>' +
@@ -734,8 +680,6 @@ function todoSheetHTML(p){
         '<input type="range" id="todoProgress" min="0" max="100" step="5" value="' + f.progress + '" style="--p:' + f.progress + '%" />' +
         '<span class="progress-val" id="progressVal">' + f.progress + '%</span>' +
       '</div></div>' +
-      '<div class="field-label">标签</div>' +
-      '<div class="form-card"><div class="picker" id="tagPicker">' + tagPickerHTML() + '</div></div>' +
       '<div class="field-label">所属列表</div>' +
       '<div class="form-card">' +
         '<div class="form-row">' + svg('folder', 'ri') +
@@ -751,17 +695,6 @@ function todoSheetHTML(p){
     '</div>';
 }
 
-function tagPickerHTML(){
-  const f = SHEET.form;
-  if (!DB.tags.length) return '<span style="font-size:13px;color:#8E8E93">可以不写标签，如果需要请添加</span>';
-  return DB.tags.map(tg => {
-    const on = f.tags.indexOf(tg.id) >= 0;
-    return '<button class="pick-chip' + (on ? ' is-on' : '') + '" data-act="pick-tag" data-id="' + tg.id + '" ' +
-      'style="' + (on ? 'background:' + tg.color + ';color:#fff' : '') + '">' +
-      '<span style="color:' + (on ? '#fff' : tg.color) + ';opacity:' + (on ? 1 : .9) + '">#</span>' +
-      esc(tg.name) + '</button>';
-  }).join('');
-}
 function listPickerHTML(){
   const f = SHEET.form;
   if (!DB.lists.length) return '<span style="font-size:13px;color:#8E8E93">还没有列表，请先在设置中新建</span>';
@@ -866,38 +799,6 @@ function renderEditList(p){
     (isNew ? '' : '<button class="danger-btn" data-act="del-current-list">删除此列表</button>');
 }
 
-function renderEditTag(p){
-  const isNew = !!p.isNew;
-  const tag = isNew ? null : findTag(p.tagId);
-  if (!isNew && !tag) { setTimeout(back, 0); return; }
-  const key = isNew ? '__new_tag__' : p.tagId;
-
-  if (!EDIT || EDIT.key !== key) {
-    EDIT = {
-      key: key, isNew: isNew, tagId: p.tagId || null,
-      name: tag ? tag.name : '',
-      color: tag ? tag.color : PALETTE[10]
-    };
-  }
-
-  const dots = PALETTE.map(c =>
-    '<button class="color-dot' + (EDIT.color === c ? ' is-active' : '') + '" data-act="pick-color" ' +
-    'data-color="' + c + '" style="--c:' + c + ';--c-35:' + hexRgba(c, .35) + '" aria-label="颜色">' +
-    '<i></i></button>').join('');
-
-  $('#editTagBody').innerHTML =
-    '<div class="field-label" style="padding-top:6px">编辑标签</div>' +
-    '<div class="pick-card" style="padding:8px">' +
-      '<div class="name-field-wrap" style="background:#F2F2F6">' +
-        '<input class="name-field" id="tagName" placeholder="标签名称" maxlength="12" value="' + esc(EDIT.name) + '" style="text-align:center" />' +
-        (EDIT.name ? '<button class="clear-btn" data-act="clear-name" aria-label="清空"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.4 8.4l7.2 7.2M15.6 8.4l-7.2 7.2" stroke="#F2F2F6" stroke-width="2" fill="none"/></svg></button>' : '') +
-      '</div>' +
-    '</div>' +
-    '<div class="field-label">标签颜色</div>' +
-    '<div class="pick-card"><div class="colors">' + dots + '</div></div>' +
-    (isNew ? '' : '<button class="danger-btn" data-act="del-current-tag">删除此标签</button>');
-}
-
 /* ============================================================
    11. 数据操作
    ============================================================ */
@@ -939,15 +840,6 @@ function deleteList(id){
   if (UI.doneList === id) UI.doneList = 'all';
   save(); renderApp();
   toast('列表已删除');
-}
-function deleteTag(id){
-  const tag = findTag(id);
-  if (!tag) return;
-  if (!window.confirm('删除标签「' + tag.name + '」？待办上的该标签会被移除。')) return;
-  DB.tags = DB.tags.filter(t => t.id !== id);
-  DB.todos.forEach(t => { t.tags = (t.tags || []).filter(x => x !== id); });
-  save(); renderApp();
-  toast('标签已删除');
 }
 
 /* ============================================================
@@ -1011,11 +903,8 @@ document.addEventListener('click', function(e){
       back();
       break;
     case 'new-list': EDIT = null; push('editList', { isNew:true }); break;
-    case 'new-tag': EDIT = null; push('editTag', { isNew:true }); break;
     case 'open-edit-list': EDIT = null; push('editList', { listId:id }); break;
-    case 'open-edit-tag': EDIT = null; push('editTag', { tagId:id }); break;
     case 'del-list': deleteList(id); break;
-    case 'del-tag': deleteTag(id); break;
     case 'toggle-hide-empty':
       UI.hideEmpty = !UI.hideEmpty;
       saveUI();
@@ -1034,17 +923,9 @@ document.addEventListener('click', function(e){
     case 'pick-icon':  if (EDIT) { EDIT.icon = el.dataset.icon; rerenderEdit(); } break;
     case 'clear-name': if (EDIT) { EDIT.name = ''; rerenderEdit(); focusName(); } break;
     case 'save-list': saveList(); break;
-    case 'save-tag': saveTag(); break;
     case 'del-current-list': if (EDIT && !EDIT.isNew) deleteList(EDIT.listId); break;
-    case 'del-current-tag': if (EDIT && !EDIT.isNew) deleteTag(EDIT.tagId); break;
 
     /* 待办表单 */
-    case 'pick-tag': {
-      const i = SHEET.form.tags.indexOf(id);
-      if (i >= 0) SHEET.form.tags.splice(i, 1); else SHEET.form.tags.push(id);
-      const tp = $('#tagPicker'); if (tp) tp.innerHTML = tagPickerHTML();
-      break;
-    }
     case 'pick-list': {
       const l = findList(id);
       SHEET.form.listId = id;
@@ -1054,7 +935,11 @@ document.addEventListener('click', function(e){
       const lp = $('#listPicker'); if (lp) lp.innerHTML = listPickerHTML();
       break;
     }
-    case 'clear-date': SHEET.form.date = ''; renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId }); break;
+    case 'clear-date':
+      SHEET.form.date = '';
+      SHEET.pendingDate = '';
+      renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
+      break;
 
     case 'todo-save': saveTodoSheet(); break;
     case 'todo-edit': {
@@ -1123,7 +1008,6 @@ document.addEventListener('input', function(e){
     return;
   }
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
-  if (el.id === 'tagName' && EDIT) { EDIT.name = el.value; return; }
 });
 document.addEventListener('focusin', function(e){
   if (e.target && e.target.id === 'todoDate') {
@@ -1135,10 +1019,12 @@ document.addEventListener('change', function(e){
   const el = e.target;
   if (el.id !== 'todoDate' || !SHEET) return;
   const val = el.value;
+  const shown = SHEET.pendingDate === null ? SHEET.form.date : SHEET.pendingDate;
   // 打开空日期输入时，Safari 可能直接回填「今天」；没有真正选择过就丢弃这次变更
-  const untouchedToday = !SHEET.form.date && val === todayISO() && !dateDirty && (Date.now() - dateOpenAt) < 1200;
-  if (untouchedToday) { el.value = SHEET.form.date || ''; return; }
-  SHEET.form.date = val;
+  const untouchedToday = !shown && val === todayISO() && !dateDirty && (Date.now() - dateOpenAt) < 1200;
+  if (untouchedToday) { el.value = shown || ''; return; }
+  // 只记为待保存，等点「保存」再写入
+  SHEET.pendingDate = val;
   renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
 });
 
@@ -1182,17 +1068,19 @@ function saveTodoSheet(){
   if (!listId) { toast('请填写所属列表'); return; }
   const note = String(f.note || '').trim().slice(0, 500);
   const progress = Math.max(0, Math.min(100, Math.round(Number(f.progress) || 0)));
+  // 点「保存」时才把选好的日期真正写入
+  const date = SHEET.pendingDate === null ? f.date : SHEET.pendingDate;
   if (SHEET.todoId) {
     const t = findTodo(SHEET.todoId);
     if (t) {
       t.title = title; t.note = note; t.progress = progress;
-      t.date = f.date; t.tags = f.tags.slice(); t.listId = listId;
+      t.date = date; t.listId = listId;
     }
   } else {
     DB.todos.unshift({
       id: uid(), listId: listId, title: title,
-      note: note, progress: progress, date: f.date,
-      tags: f.tags.slice(), done: false, doneAt: '', createdAt: Date.now()
+      note: note, progress: progress, date: date,
+      done: false, doneAt: '', createdAt: Date.now()
     });
   }
   save();
@@ -1208,11 +1096,10 @@ function saveTodoSheet(){
 function rerenderEdit(){
   const cur = current();
   if (cur.name === 'editList') renderEditList(cur.params);
-  if (cur.name === 'editTag') renderEditTag(cur.params);
 }
 function focusName(){
   setTimeout(function(){
-    const el = $('#listName') || $('#tagName');
+    const el = $('#listName');
     if (el) { el.focus(); el.select(); }
   }, 10);
 }
@@ -1226,22 +1113,6 @@ function saveList(){
     const l = findList(EDIT.listId);
     if (!l) return;
     l.name = name.slice(0, 20); l.icon = EDIT.icon; l.color = EDIT.color;
-  }
-  save();
-  EDIT = null;
-  back();
-  toast('已保存');
-}
-function saveTag(){
-  if (!EDIT) return;
-  const name = String(EDIT.name || '').trim();
-  if (!name) { toast('请输入标签名称'); return; }
-  if (EDIT.isNew) {
-    DB.tags.push({ id: uid(), name: name.slice(0, 12), color: EDIT.color });
-  } else {
-    const t = findTag(EDIT.tagId);
-    if (!t) return;
-    t.name = name.slice(0, 12); t.color = EDIT.color;
   }
   save();
   EDIT = null;
@@ -1378,7 +1249,7 @@ document.addEventListener('pointerdown', function(e){
     row.classList.remove('is-dragging');
     gDrag = null;
     if (target !== idx) {
-      const arr = type === 'list' ? DB.lists : DB.tags;
+      const arr = DB.lists;
       const id = row.dataset.id;
       const from = arr.findIndex(x => x.id === id);
       if (from >= 0) {
@@ -1398,7 +1269,7 @@ document.addEventListener('pointerdown', function(e){
    17. 导入 / 导出
    ============================================================ */
 function exportJSON(){
-  const data = { app:'todolist', version:2, exportedAt:new Date().toISOString(), lists:DB.lists, tags:DB.tags, todos:DB.todos };
+  const data = { app:'todolist', version:2, exportedAt:new Date().toISOString(), lists:DB.lists, todos:DB.todos };
   try {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1443,18 +1314,11 @@ function mergeDataset(next){
     if (exist) listMap[l.id] = exist.id;
     else { DB.lists.push(l); listMap[l.id] = l.id; }
   });
-  const tagMap = {};
-  next.tags.forEach(t => {
-    const exist = DB.tags.find(x => x.name === t.name);
-    if (exist) tagMap[t.id] = exist.id;
-    else { DB.tags.push(t); tagMap[t.id] = t.id; }
-  });
   next.todos.forEach(t => {
     DB.todos.push({
       id: uid(),
       listId: listMap[t.listId] || (DB.lists[0] && DB.lists[0].id) || '',
-      title: t.title, date: t.date,
-      tags: t.tags.map(id => tagMap[id]).filter(Boolean),
+      title: t.title, date: t.date, note: t.note || '', progress: t.progress || 0,
       done: t.done, doneAt: t.doneAt, createdAt: t.createdAt
     });
   });
@@ -1485,7 +1349,7 @@ function loadDemo(){
 }
 
 function resetAll(){
-  if (!window.confirm('清空所有列表、标签和待办？该操作不可恢复，建议先导出备份。')) return;
+  if (!window.confirm('清空所有列表和待办？该操作不可恢复，建议先导出备份。')) return;
   DB = { version:2, lists:[], tags:[], todos:[] };
   UI.doneList = 'all';
   UI.doneYear = 'all';
@@ -1544,9 +1408,6 @@ function bindStatic(){
   }));
   $$('[data-act="save-list"]').forEach(b => b.addEventListener('click', function(e){
     e.stopPropagation(); saveList();
-  }));
-  $$('[data-act="save-tag"]').forEach(b => b.addEventListener('click', function(e){
-    e.stopPropagation(); saveTag();
   }));
 
   window.addEventListener('storage', function(e){

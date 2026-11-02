@@ -135,6 +135,7 @@ let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, so
 let stack = [{ name:'root', params:{} }];
 let canHistory = true;
 let SHEET = null;
+let DATE_SEL = null;
 let EDIT = null;
 let dragState = null;
 let suppressClickUntil = 0;
@@ -403,6 +404,12 @@ function renderHome(){
     return DB.todos.some(function(t){ return t.listId === l.id && !t.done; });
   });
   $('#homeEmpty').hidden = lists.length > 0;
+  const emptyAction = $('#emptyAction');
+  if (emptyAction) {
+    const hasLists = DB.lists.length > 0;
+    emptyAction.dataset.act = hasLists ? 'add-todo' : 'new-list';
+    emptyAction.textContent = hasLists ? '新建待办事项' : '新建列表';
+  }
   if (!lists.length) { board.innerHTML = ''; return; }
 
   const cards = lists.map(listCardHTML);
@@ -562,13 +569,14 @@ function renderSheet(p){
     }
     SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
-  if (p.kind !== 'todo' && SHEET && SHEET.kind === 'todo' && SHEET._t !== p._t) SHEET = null;
+  // 说明：日期选择等子弹层打开时保留 SHEET，避免待办表单已填内容丢失
 
   sheet.className = 'sheet' + (p.full ? ' is-full' : '') +
     (p.kind === 'settings' && UI.editing ? ' is-editing' : '');
 
   if (p.kind === 'settings') sheet.innerHTML = settingsHTML();
   else if (p.kind === 'todo') sheet.innerHTML = todoSheetHTML(p);
+  else if (p.kind === 'date') sheet.innerHTML = dateSheetHTML();
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
@@ -591,17 +599,11 @@ function hideSheet(){
   $('#sheetHost').hidden = true;
   $('#sheet').innerHTML = '';
   SHEET = null;
+  DATE_SEL = null;
 }
 
 /* ---------- 设置面板 ---------- */
 function settingsHTML(){
-  const totalAll = DB.todos.length;
-  const doneAll = DB.todos.filter(t => t.done).length;
-
-  const smartRows =
-    gRow({ attrs:'data-act="smart" data-id="all"', icon:'list', color:PALETTE[8], name:'全部', num:totalAll }) +
-    gRow({ attrs:'data-act="smart" data-id="done"', icon:'checkCircle', color:'#8E8E93', name:'已完成', num:doneAll });
-
   const listRows = DB.lists.map(l => {
     const n = DB.todos.filter(t => t.listId === l.id).length;
     return gRow({
@@ -630,19 +632,17 @@ function settingsHTML(){
       '<button class="circle-btn" data-act="close-sheet" aria-label="关闭">' + svg('close') + '</button>' +
     '</div>' +
     '<div class="sheet-body">' +
-      '<div class="group"><div class="group-head"><span>智能列表</span></div>' +
-        '<div class="group-card">' + smartRows + '</div></div>' +
+      '<div class="group"><div class="group-head"><span>管理</span></div>' +
+        '<div class="group-card">' +
+          '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
+            '<span>' + (UI.editing ? '完成编辑' : '编辑列表与标签') + '</span></button>' +
+        '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<button class="group-add" data-act="new-list" aria-label="新建列表">' + svg('plus') + '</button></div>' +
         '<div class="group-card" data-reorder="list">' + listRows + '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的标签</span>' +
         '<button class="group-add" data-act="new-tag" aria-label="新建标签">' + svg('plus') + '</button></div>' +
         '<div class="group-card" data-reorder="tag">' + tagRows + '</div></div>' +
-      '<div class="group"><div class="group-head"><span>管理</span></div>' +
-        '<div class="group-card">' +
-          '<button class="menu-item" data-act="toggle-edit">' + svg('pen') +
-            '<span>' + (UI.editing ? '完成编辑' : '编辑列表与标签') + '</span></button>' +
-        '</div></div>' +
       '<div class="group"><div class="group-head"><span>数据</span></div>' +
         '<div class="group-card">' +
           '<button class="menu-item" data-act="load-demo">' + svg('bulb') + '<span>加载示例数据</span></button>' +
@@ -715,10 +715,9 @@ function todoSheetHTML(p){
       '<div class="field-label">日期</div>' +
       '<div class="form-card"><div class="form-row">' + svg('calendar', 'ri') +
         '<span class="lbl">日期</span>' +
-        '<div class="date-cell">' +
-          '<input type="date" id="todoDate" class="' + (f.date ? '' : 'is-empty') + '" value="' + esc(f.date) + '" />' +
-          (f.date ? '' : '<span class="date-hint">未设置，点击选择</span>') +
-        '</div>' +
+        '<button class="date-open" data-act="open-date">' +
+          (f.date ? esc(fmtDate(f.date)) : '<span class="date-hint">未设置，点击选择</span>') +
+        '</button>' +
         (f.date ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
           '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
       '</div></div>' +
@@ -746,7 +745,7 @@ function todoSheetHTML(p){
 
 function tagPickerHTML(){
   const f = SHEET.form;
-  if (!DB.tags.length) return '<span style="font-size:13px;color:#8E8E93">还没有标签，可在设置中添加</span>';
+  if (!DB.tags.length) return '<span style="font-size:13px;color:#8E8E93">可以不写标签，如果需要请添加</span>';
   return DB.tags.map(tg => {
     const on = f.tags.indexOf(tg.id) >= 0;
     return '<button class="pick-chip' + (on ? ' is-on' : '') + '" data-act="pick-tag" data-id="' + tg.id + '" ' +
@@ -764,6 +763,47 @@ function listPickerHTML(){
       'style="' + (on ? 'background:' + l.color + ';color:#fff' : 'color:' + l.color) + '">' +
       svg(l.icon) + esc(l.name) + '</button>';
   }).join('');
+}
+
+/* ---------- 日期选择 ---------- */
+function dateSheetHTML(){
+  const sel = DATE_SEL;
+  if (!sel) return '';
+  const nowY = new Date().getFullYear();
+  const years = [];
+  for (let y = nowY - 5; y <= nowY + 10; y++) years.push(y);
+  if (years.indexOf(sel.y) < 0) years.push(sel.y);
+  years.sort(function(a, b){ return a - b; });
+
+  const dayCount = new Date(sel.y, sel.m, 0).getDate();
+  const yearOpts = years.map(function(y){
+    return '<option value="' + y + '"' + (y === sel.y ? ' selected' : '') + '>' + y + ' 年</option>';
+  }).join('');
+  const monthOpts = [];
+  for (let m = 1; m <= 12; m++) {
+    monthOpts.push('<option value="' + m + '"' + (m === sel.m ? ' selected' : '') + '>' + m + ' 月</option>');
+  }
+  const dayOpts = [];
+  for (let d = 1; d <= dayCount; d++) {
+    dayOpts.push('<option value="' + d + '"' + (d === sel.d ? ' selected' : '') + '>' + d + ' 日</option>');
+  }
+
+  return grab() +
+    '<div class="sheet-head">' +
+      '<h2 class="sheet-title">选择日期</h2>' +
+      '<button class="circle-btn" data-act="date-cancel" aria-label="关闭">' + svg('close') + '</button>' +
+    '</div>' +
+    '<div class="sheet-body">' +
+      '<div class="date-picker">' +
+        '<select class="date-sel" id="dateYear">' + yearOpts + '</select>' +
+        '<select class="date-sel" id="dateMonth">' + monthOpts.join('') + '</select>' +
+        '<select class="date-sel" id="dateDay">' + dayOpts.join('') + '</select>' +
+      '</div>' +
+      '<div class="sheet-actions">' +
+        '<button class="ghost-btn" data-act="date-cancel">取消</button>' +
+        '<button class="primary-btn" data-act="date-confirm">确定</button>' +
+      '</div>' +
+    '</div>';
 }
 
 /* ---------- 年份筛选 ---------- */
@@ -1042,6 +1082,22 @@ document.addEventListener('click', function(e){
       break;
     }
     case 'clear-date': SHEET.form.date = ''; renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId }); break;
+    case 'open-date': {
+      if (!SHEET) break;
+      const base = SHEET.form.date ? parseISO(SHEET.form.date) : new Date();
+      DATE_SEL = { y: base.getFullYear(), m: base.getMonth() + 1, d: base.getDate() };
+      push('sheet', { kind:'date' });
+      break;
+    }
+    case 'date-cancel': DATE_SEL = null; back(); break;
+    case 'date-confirm': {
+      if (DATE_SEL && SHEET) {
+        SHEET.form.date = toISO(new Date(DATE_SEL.y, DATE_SEL.m - 1, DATE_SEL.d));
+      }
+      DATE_SEL = null;
+      back();
+      break;
+    }
     case 'todo-save': saveTodoSheet(); break;
     case 'todo-edit': {
       // 详情面板 → 编辑表单，替换当前弹层，关闭后直接回到原页面
@@ -1112,10 +1168,14 @@ document.addEventListener('input', function(e){
 });
 document.addEventListener('change', function(e){
   const el = e.target;
-  if (el.id === 'todoDate' && SHEET) {
-    SHEET.form.date = el.value;
-    renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId });
-  }
+  if (!DATE_SEL) return;
+  if (el.id === 'dateYear') DATE_SEL.y = Number(el.value) || DATE_SEL.y;
+  else if (el.id === 'dateMonth') DATE_SEL.m = Number(el.value) || DATE_SEL.m;
+  else if (el.id === 'dateDay') DATE_SEL.d = Number(el.value) || DATE_SEL.d;
+  else return;
+  const maxDay = new Date(DATE_SEL.y, DATE_SEL.m, 0).getDate();
+  if (DATE_SEL.d > maxDay) DATE_SEL.d = maxDay;
+  renderSheet({ kind:'date' });
 });
 
 /* ============================================================

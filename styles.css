@@ -497,13 +497,20 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
   font-size:16px;color:var(--text);-webkit-appearance:none;appearance:none;
 }
 .form-row .list-name-input::placeholder{color:var(--text3);}
-.date-cell{position:relative;flex:1;min-width:0;display:flex;}
-.form-row .date-hint{
-  position:absolute;right:0;top:50%;transform:translateY(-50%);
-  font-size:16px;color:var(--text3);white-space:nowrap;pointer-events:none;
+.form-row .date-open{
+  flex:1;min-width:0;border:0;background:none;padding:0;
+  font-size:16px;text-align:right;color:var(--text);font-family:inherit;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.form-row input[type="date"].is-empty{color:transparent;}
-.form-row input[type="date"].is-empty::-webkit-datetime-edit{color:transparent;}
+.form-row .date-open .date-hint{font-size:16px;color:var(--text3);}
+
+/* 日期选择弹层 */
+.date-picker{display:flex;gap:10px;margin-top:12px;}
+.date-sel{
+  flex:1;min-width:0;height:52px;border:0;border-radius:14px;
+  background:var(--card);box-shadow:var(--shadow);
+  font-size:16px;color:var(--text);font-family:inherit;padding:0 10px;
+}
 .clear-inline{
   flex:none;width:24px;height:24px;border-radius:50%;color:var(--text3);
   display:flex;align-items:center;justify-content:center;

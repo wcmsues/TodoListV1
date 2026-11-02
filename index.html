@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#F2F2F5" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="format-detection" content="telephone=no" />
+<title>待办事项</title>
+<meta name="apple-mobile-web-app-title" content="待办清单" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ================= 待办事项 ================= -->
+  <section class="view is-active" data-view="home">
+    <header class="page-head">
+      <div class="head-row">
+        <h1 class="page-title">卡片列表</h1>
+        <div class="head-actions">
+          <button class="circle-btn is-primary" id="btnAdd" aria-label="添加待办">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button class="circle-btn" id="btnCols" aria-label="切换布局">
+            <svg viewBox="0 0 24 24" id="iconCols"><rect x="3" y="3" width="7" height="7" rx="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.8"/></svg>
+          </button>
+          <button class="circle-btn" id="btnSettings" aria-label="设置">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="segment">
+        <button class="segment-item is-active" data-tab="home">待办事项</button>
+        <button class="segment-item" data-tab="done">已完成</button>
+      </div>
+    </header>
+    <div class="scroll" id="homeScroll">
+      <div class="board" id="board"></div>
+      <div class="empty-state" id="homeEmpty" hidden>
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 9h8M8 13h5"/></svg>
+        <p>还没有任何列表</p>
+        <small>先加载示例看看效果，或新建你自己的列表</small>
+        <div class="empty-actions">
+          <button class="primary-btn" data-act="load-demo">加载示例数据</button>
+          <button class="ghost-btn" data-act="new-list">新建列表</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 已完成 ================= -->
+  <section class="view" data-view="done">
+    <header class="page-head">
+      <div class="head-row">
+        <h1 class="page-title">已完成</h1>
+        <div class="head-actions">
+          <button class="circle-btn" id="btnYearFilter" aria-label="按年份筛选">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.4v4.9l3.3 1.9"/></svg>
+          </button>
+          <button class="circle-btn" id="btnSettingsDone" aria-label="设置">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="segment">
+        <button class="segment-item" data-tab="home">待办事项</button>
+        <button class="segment-item is-active" data-tab="done">已完成</button>
+      </div>
+      <div class="chips" id="doneChips"></div>
+    </header>
+    <div class="scroll" id="doneScroll">
+      <div class="section-label"><span>已完成</span><span id="doneCount">0</span></div>
+      <div class="big-card" id="doneCard"></div>
+      <div class="empty-state" id="doneEmpty" hidden>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>
+        <p>还没有已完成的待办</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 列表详情 ================= -->
+  <section class="view" data-view="list">
+    <header class="nav-head">
+      <button class="circle-btn" data-act="back" aria-label="返回">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="nav-title" id="listTitle"></div>
+      <div class="nav-head-right">
+        <button class="circle-btn is-primary" id="btnAddList" aria-label="添加待办">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="circle-btn" id="btnListMore" aria-label="更多">
+          <svg viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="scroll" id="listScroll">
+      <div class="section-label"><span>待处理</span><span id="listCount">0</span></div>
+      <div class="sort-hint" id="sortHint" hidden>
+        <svg viewBox="0 0 24 24"><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3"/></svg>
+        按住待办可拖动排序，完成后点右上角 ⋯ 退出
+      </div>
+      <div class="big-card" id="listCard"></div>
+      <div class="empty-state" id="listEmpty" hidden>
+        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/></svg>
+        <p>这个列表还没有待办</p>
+        <small>点右上角 + 添加一条</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 编辑列表 ================= -->
+  <section class="view" data-view="editList">
+    <header class="nav-head">
+      <button class="circle-btn" data-act="back" aria-label="收起">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="nav-title"><span>编辑列表</span></div>
+      <button class="circle-btn is-primary" data-act="save-list" aria-label="保存">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+      </button>
+    </header>
+    <div class="scroll edit-scroll" id="editListBody"></div>
+  </section>
+
+  <!-- ================= 编辑标签 ================= -->
+  <section class="view" data-view="editTag">
+    <header class="nav-head">
+      <button class="circle-btn" data-act="back" aria-label="收起">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="nav-title"><span>编辑标签</span></div>
+      <button class="circle-btn is-primary" data-act="save-tag" aria-label="保存">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+      </button>
+    </header>
+    <div class="scroll edit-scroll" id="editTagBody"></div>
+  </section>
+
+</div>
+
+<!-- Sheet 容器 -->
+<div class="sheet-host" id="sheetHost" hidden>
+  <div class="sheet-mask" id="sheetMask"></div>
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

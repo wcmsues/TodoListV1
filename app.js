@@ -543,12 +543,23 @@ function renderSheet(p){
 
   if (p.kind === 'todo' && (!SHEET || SHEET._t !== p._t)) {
     const t = p.todoId ? findTodo(p.todoId) : null;
-    SHEET = {
-      _t: p._t, kind:'todo', todoId: p.todoId || null,
-      form: t
-        ? { title: t.title, note: t.note || '', progress: t.progress || 0, date: t.date, tags: t.tags.slice(), listId: t.listId }
-        : { title:'', note:'', progress:0, date:'', tags:[], listId: p.listId || (DB.lists[0] && DB.lists[0].id) || '' }
-    };
+    let form;
+    if (t) {
+      const list = findList(t.listId);
+      form = {
+        title: t.title, note: t.note || '', progress: t.progress || 0,
+        date: t.date, tags: t.tags.slice(), listId: t.listId,
+        listName: list ? list.name : ''
+      };
+    } else {
+      const lid = p.listId || (DB.lists[0] && DB.lists[0].id) || '';
+      const list = lid ? findList(lid) : null;
+      form = {
+        title:'', note:'', progress:0, date:'', tags:[],
+        listId: lid, listName: list ? list.name : ''
+      };
+    }
+    SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
   if (p.kind !== 'todo' && SHEET && SHEET.kind === 'todo' && SHEET._t !== p._t) SHEET = null;
 
@@ -710,7 +721,13 @@ function todoSheetHTML(p){
       '<div class="field-label">标签</div>' +
       '<div class="form-card"><div class="picker" id="tagPicker">' + tagPickerHTML() + '</div></div>' +
       '<div class="field-label">所属列表</div>' +
-      '<div class="form-card"><div class="picker" id="listPicker">' + listPickerHTML() + '</div></div>' +
+      '<div class="form-card">' +
+        '<div class="form-row">' + svg('folder', 'ri') +
+          '<input class="list-name-input" id="todoListName" placeholder="输入列表名，不存在会自动创建" ' +
+            'maxlength="20" autocomplete="off" value="' + esc(f.listName) + '" />' +
+        '</div>' +
+        (DB.lists.length ? '<div class="picker" id="listPicker" style="padding:0 14px 14px">' + listPickerHTML() + '</div>' : '') +
+      '</div>' +
       '<div class="sheet-actions">' +
         '<button class="ghost-btn" data-act="close-sheet">取消</button>' +
         '<button class="primary-btn" data-act="todo-save">' + (isNew ? '保存' : '保存修改') + '</button>' +
@@ -1000,9 +1017,15 @@ document.addEventListener('click', function(e){
       const tp = $('#tagPicker'); if (tp) tp.innerHTML = tagPickerHTML();
       break;
     }
-    case 'pick-list': SHEET.form.listId = id;
-      { const lp = $('#listPicker'); if (lp) lp.innerHTML = listPickerHTML(); }
+    case 'pick-list': {
+      const l = findList(id);
+      SHEET.form.listId = id;
+      SHEET.form.listName = l ? l.name : '';
+      const inp = $('#todoListName');
+      if (inp) inp.value = SHEET.form.listName;
+      const lp = $('#listPicker'); if (lp) lp.innerHTML = listPickerHTML();
       break;
+    }
     case 'clear-date': SHEET.form.date = ''; renderSheet({ kind:'todo', _t: SHEET._t, todoId: SHEET.todoId }); break;
     case 'todo-save': saveTodoSheet(); break;
     case 'todo-edit': {
@@ -1058,6 +1081,17 @@ document.addEventListener('input', function(e){
     if (pv) pv.textContent = el.value + '%';
     return;
   }
+  if (el.id === 'todoListName' && SHEET) {
+    SHEET.form.listName = el.value;
+    const key = el.value.trim().toLowerCase();
+    const hit = key ? DB.lists.filter(function(l){
+      return String(l.name || '').trim().toLowerCase() === key;
+    })[0] : null;
+    SHEET.form.listId = hit ? hit.id : '';
+    const lp = $('#listPicker');
+    if (lp) lp.innerHTML = listPickerHTML();
+    return;
+  }
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
   if (el.id === 'tagName' && EDIT) { EDIT.name = el.value; return; }
 });
@@ -1073,8 +1107,26 @@ document.addEventListener('change', function(e){
    14. 待办表单动作
    ============================================================ */
 function openTodoSheet(todoId, listId){
-  if (!DB.lists.length) { toast('请先在设置中新建一个列表'); push('sheet', { kind:'settings' }); return; }
   push('sheet', { kind:'todo', todoId: todoId || null, listId: listId || null, _t: uid() });
+}
+/* 根据表单里填写的列表名解析所属列表：同名复用，否则自动新建 */
+function resolveListForForm(f){
+  const typed = String(f.listName || '').trim().slice(0, 20);
+  const key = typed.toLowerCase();
+  if (key) {
+    const hit = DB.lists.filter(function(l){
+      return String(l.name || '').trim().toLowerCase() === key;
+    })[0];
+    if (hit) return hit.id;
+  }
+  if (f.listId && findList(f.listId)) return f.listId;
+  if (!key) return '';
+  const list = {
+    id: uid(), name: typed, icon: 'list',
+    color: PALETTE[DB.lists.length % PALETTE.length]
+  };
+  DB.lists.push(list);
+  return list.id;
 }
 function openTodoView(todoId){
   if (!findTodo(todoId)) return;
@@ -1085,18 +1137,21 @@ function saveTodoSheet(){
   const f = SHEET.form;
   const title = String(f.title || '').trim();
   if (!title) { toast('请输入待办内容'); return; }
-  if (!f.listId) { toast('请选择所属列表'); return; }
+  const listCountBefore = DB.lists.length;
+  const listId = resolveListForForm(f);
+  const createdList = DB.lists.length > listCountBefore;
+  if (!listId) { toast('请填写所属列表'); return; }
   const note = String(f.note || '').trim().slice(0, 500);
   const progress = Math.max(0, Math.min(100, Math.round(Number(f.progress) || 0)));
   if (SHEET.todoId) {
     const t = findTodo(SHEET.todoId);
     if (t) {
       t.title = title; t.note = note; t.progress = progress;
-      t.date = f.date; t.tags = f.tags.slice(); t.listId = f.listId;
+      t.date = f.date; t.tags = f.tags.slice(); t.listId = listId;
     }
   } else {
     DB.todos.unshift({
-      id: uid(), listId: f.listId, title: title,
+      id: uid(), listId: listId, title: title,
       note: note, progress: progress, date: f.date,
       tags: f.tags.slice(), done: false, doneAt: '', createdAt: Date.now()
     });
@@ -1105,7 +1160,7 @@ function saveTodoSheet(){
   const addAnother = SHEET && !SHEET.todoId;
   SHEET = null;
   back();
-  toast(addAnother ? '已添加' : '已保存');
+  toast(createdList ? '已自动创建列表并添加' : (addAnother ? '已添加' : '已保存'));
 }
 
 /* ============================================================

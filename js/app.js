@@ -239,13 +239,15 @@ function nextOpenDate(t){
   if (open.length) return open[0];
   return ds.length ? ds[ds.length - 1] : '';
 }
-/* 把 dates / doneMap 同步成 date / done / doneAt 三个派生字段，
+/* 把 dates / doneMap / timeMap 同步成 date / done / doneAt / time 四个派生字段，
    这样排序、逾期、首页卡片、详情、已完成页都不用改 */
 function syncTodo(t){
   if (!Array.isArray(t.dates)) t.dates = t.date ? [t.date] : [];
   if (!t.doneMap || typeof t.doneMap !== 'object') t.doneMap = {};
+  if (!t.timeMap || typeof t.timeMap !== 'object') t.timeMap = {};
   const ds = t.dates;
   t.date = ds.length ? (ds.filter(d => !t.doneMap[d])[0] || ds[ds.length - 1]) : '';
+  t.time = t.date ? (t.timeMap[t.date] || '') : (t.timeMap[''] || '');
   t.done = ds.length ? ds.every(d => !!t.doneMap[d]) : !!t.doneMap[''];
   if (t.done) {
     const stamps = (ds.length ? ds.map(d => t.doneMap[d]) : [t.doneMap['']])
@@ -255,6 +257,10 @@ function syncTodo(t){
     t.doneAt = '';
   }
   return t;
+}
+/* 某个日期的时刻（无日期待办用 '' 键） */
+function occTime(t, d){
+  return (t.timeMap && t.timeMap[d || '']) || '';
 }
 /* 勾选某个日期（B 语义：各日期互不影响）；date 为空表示无日期待办 */
 function toggleOccurrence(t, date){
@@ -346,7 +352,7 @@ function seed(){
     title: o.title,
     dates: o.date ? [o.date] : [],
     doneMap: o.done ? { [o.date || '']: o.doneAt || todayISO() } : {},
-    time: o.time || '',
+    timeMap: o.time ? { [o.date || '']: o.time } : {},
     note: o.note || '',
     progress: o.progress || 0,
     starred: !!o.starred,
@@ -385,13 +391,26 @@ function normalizeDB(raw){
     } else if (t.done) {
       doneMap[dates.length ? dates[0] : ''] = DATE_RE.test(t.doneAt || '') ? t.doneAt : todayISO();
     }
+    // 每个日期各自的时刻；老数据只有一个 time，就套用到所有日期
+    const timeMap = {};
+    const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (t.timeMap && typeof t.timeMap === 'object') {
+      Object.keys(t.timeMap).forEach(function(k){
+        if (k !== '' && dates.indexOf(k) < 0) return;
+        if (TIME_RE.test(t.timeMap[k] || '')) timeMap[k] = t.timeMap[k];
+      });
+    }
+    if (!Object.keys(timeMap).length && TIME_RE.test(t.time || '')) {
+      if (dates.length) dates.forEach(function(d){ timeMap[d] = t.time; });
+      else timeMap[''] = t.time;
+    }
     out.todos.push(syncTodo({
       id: t.id || uid(),
       listId: listIds.indexOf(t.listId) >= 0 ? t.listId : (listIds[0] || ''),
       title: title.slice(0, 200),
       dates: dates,
       doneMap: doneMap,
-      time: /^([01]\d|2[0-3]):[0-5]\d$/.test(t.time || '') ? t.time : '',
+      timeMap: timeMap,
       note: typeof t.note === 'string' ? t.note.slice(0, 500) : '',
       progress: Math.max(0, Math.min(100, Math.round(Number(t.progress) || 0))),
       starred: !!t.starred,
@@ -416,7 +435,7 @@ function migrateLegacy(){
       DB.todos.push(syncTodo({
         id: uid(), listId: lid, title: String(t.title).trim().slice(0, 200),
         dates: [], doneMap: t.done ? { '': todayISO() } : {},
-        time:'', note:'', progress:0, starred:false, createdAt: Date.now()
+        timeMap: {}, note:'', progress:0, starred:false, createdAt: Date.now()
       }));
     });
     return items.length;
@@ -546,18 +565,19 @@ function metaHTML(t, cls, showAll){
       '<span class="' + (isOverdue(t) ? 'is-overdue' : '') + '">' +
         fmtDate(t.date) + (t.time ? ' ' + t.time : '') + '</span></div>';
   }
-  // 多日期：列表里把每个日期都列出来，已完成的那几天划掉，过期未完成的标红
+  // 多日期：每行一个日期，各自带图标与时刻；已完成划掉，过期未完成标红
   const today = todayISO();
-  const parts = ds.map(function(d){
+  const rows = ds.map(function(d){
     const done = occDone(t, d);
     const overdue = !done && d < today;
-    return '<span class="tr-date' + (done ? ' is-done' : '') + (overdue ? ' is-overdue' : '') + '">' +
-      fmtDate(d) + '</span>';
-  }).join('<span class="tr-date-sep">·</span>');
-  return '<div class="' + box + '">' + svg('calendar') +
-    '<span class="tr-dates">' + parts + '</span>' +
-    (t.time ? '<span class="tr-time">' + esc(t.time) + '</span>' : '') +
-  '</div>';
+    const time = occTime(t, d);
+    return '<span class="tr-date-row">' + svg('calendar') +
+      '<span class="tr-date' + (done ? ' is-done' : '') + (overdue ? ' is-overdue' : '') + '">' +
+        fmtDate(d) + '</span>' +
+      (time ? '<span class="tr-time">' + esc(time) + '</span>' : '') +
+    '</span>';
+  }).join('');
+  return '<div class="' + box + ' is-multi"><span class="tr-dates">' + rows + '</span></div>';
 }
 
 /* ============================================================
@@ -775,7 +795,7 @@ function cardItemHTML(t, list){
       '<div class="lc-title">' + esc(t.title) + '</div>' +
       noteHTML(t) +
       progressHTML(t, c) +
-      metaHTML(t) +
+      metaHTML(t, 'lc-meta', true) +
     '</div>' +
     flagHTML(t) + '</div>';
 }
@@ -910,7 +930,7 @@ function renderCalendar(motion){
       if (!d || d < bounds.start || d > bounds.end) return;
       const done = occDone(t, d);
       if (UI.hideDone && done) return;
-      items.push({ todo: t, date: d, done: done, time: t.time || '', createdAt: t.createdAt || 0 });
+      items.push({ todo: t, date: d, done: done, time: occTime(t, d), createdAt: t.createdAt || 0 });
     });
   });
   items.sort(calOrder);
@@ -1020,7 +1040,8 @@ function calItemHTML(occ){
   const list = findList(t.listId);
   const color = list ? list.color : PALETTE[0];
   const meta = [];
-  if (t.time) meta.push('<span class="cr-time">' + esc(t.time) + '</span>');
+  const time = occTime(t, date);
+  if (time) meta.push('<span class="cr-time">' + esc(time) + '</span>');
   if (list) meta.push('<span class="cr-list">' + esc(list.name) + '</span>');
   if (t.note) meta.push('<span class="cr-note">' + esc(t.note) + '</span>');
   const sep = '<span class="cr-sep">·</span>';
@@ -1188,12 +1209,13 @@ function renderSheet(p){
     if (t) {
       form = {
         title: t.title, note: t.note || '', progress: t.progress || 0,
-        dates: todoDates(t).slice(), time: t.time || '', listId: t.listId, starred: !!t.starred
+        dates: todoDates(t).slice(), timeMap: Object.assign({}, t.timeMap),
+        listId: t.listId, starred: !!t.starred
       };
     } else {
       // 所属列表只能从已有列表里选，默认选中第一个
       const lid = (p.listId && findList(p.listId)) ? p.listId : ((DB.lists[0] && DB.lists[0].id) || '');
-      form = { title:'', note:'', progress:0, dates: p.date ? [p.date] : [], time:'', listId: lid, starred:false };
+      form = { title:'', note:'', progress:0, dates: p.date ? [p.date] : [], timeMap:{}, listId: lid, starred:false };
     }
     SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
@@ -1401,27 +1423,27 @@ function todoSheetHTML(p){
     '</div>';
 }
 
-/* ---------- 日期行（多日期：一条待办可以有多个日期） ---------- */
+/* ---------- 日期行（多日期 + 每个日期各自的时刻） ---------- */
 function dateRowHTML(){
   const f = SHEET.form;
   const ds = Array.isArray(f.dates) ? f.dates : [];
-  const timeTxt = f.time ? ' ' + f.time : '';
-  const text = ds.length
-    ? (ds.length === 1 ? fmtDate(ds[0]) + timeTxt : ds.length + ' 个日期' + timeTxt)
-    : '添加日期与时间';
-  return '<div class="form-card">' +
-    '<div class="form-row date-row">' + svg('calendar', 'ri') +
-      '<button class="date-cell-btn" data-act="open-date">' +
-        '<span class="date-value' + (ds.length ? '' : ' is-empty') + '">' + esc(text) + '</span>' +
+  const tm = f.timeMap || {};
+  const rows = ds.map(function(d){
+    const time = tm[d] || '';
+    return '<div class="date-item">' +
+      '<button class="date-item-main" data-act="open-date" data-date="' + d + '">' +
+        svg('calendar', 'ri') +
+        '<span class="di-date' + (d === todayISO() ? ' is-today' : '') + '">' + fmtDate(d) + '</span>' +
+        '<span class="di-time' + (time ? '' : ' is-empty') + '">' + (time || '设置时间') + '</span>' +
       '</button>' +
-      (ds.length ? '<button class="clear-inline" data-act="clear-date" aria-label="清除全部日期">' +
-        '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
-    '</div>' +
-    (ds.length ? '<div class="date-chips">' + ds.map(function(d){
-      return '<span class="date-chip' + (d === todayISO() ? ' is-today' : '') + '">' + esc(fmtDate(d)) +
-        '<button class="date-chip-x" data-act="rm-date" data-date="' + d + '" aria-label="移除 ' + esc(d) + '">' +
-          '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>';
-    }).join('') + '</div>' : '') +
+      '<button class="date-item-x" data-act="rm-date" data-date="' + d + '" aria-label="移除这个日期">' +
+        '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button>' +
+    '</div>';
+  }).join('');
+  return '<div class="form-card date-card">' +
+    (ds.length ? '<div class="date-items">' + rows + '</div>' : '') +
+    '<button class="date-add-row" data-act="open-date">' + svg('plus') +
+      '<span>' + (ds.length ? '添加日期' : '添加日期与时间') + '</span></button>' +
   '</div>';
 }
 
@@ -1433,17 +1455,23 @@ function refreshDateRow(){
 /* ---------- 日期时间选择器（选完点确认才填入） ---------- */
 let DTP = null;
 
-function openDatePicker(){
+function openDatePicker(focusDate){
   if (!SHEET || !SHEET.form) return;
   const f = SHEET.form;
-  const chosen = Array.isArray(f.dates) ? f.dates.slice() : [];
-  const base = chosen.length ? parseISO(chosen[0]) : new Date();
-  const parts = String(f.time || '').split(':');
+  const ds = Array.isArray(f.dates) ? f.dates : [];
+  const tm = f.timeMap || {};
+  const editDate = (typeof focusDate === 'string' && focusDate) ? focusDate : '';
+  const seeded = editDate ? [editDate] : [];
+  const baseISO = editDate || ds[0] || '';
+  const base = baseISO ? parseISO(baseISO) : new Date();
+  const time = (editDate ? tm[editDate] : '') || '';
+  const parts = String(time).split(':');
   DTP = {
     y: base.getFullYear(), m: base.getMonth(),
-    sel: new Set(chosen),
-    hh: f.time ? parts[0] : '',
-    mm: f.time ? parts[1] : ''
+    sel: new Set(seeded),
+    editDate: editDate,
+    hh: time ? parts[0] : '',
+    mm: time ? parts[1] : ''
   };
   const host = $('#dpHost');
   if (host) {
@@ -1926,12 +1954,13 @@ document.addEventListener('click', function(e){
     case 'clear-date':
       if (!SHEET || !SHEET.form) break;
       SHEET.form.dates = [];
-      SHEET.form.time = '';
+      SHEET.form.timeMap = {};
       refreshDateRow();
       break;
     case 'rm-date':
       if (!SHEET || !SHEET.form) break;
       SHEET.form.dates = (SHEET.form.dates || []).filter(function(d){ return d !== el.dataset.date; });
+      if (SHEET.form.timeMap) delete SHEET.form.timeMap[el.dataset.date];
       haptic(6);
       refreshDateRow();
       break;
@@ -1943,7 +1972,7 @@ document.addEventListener('click', function(e){
       break;
 
     /* 日期时间选择器 */
-    case 'open-date': openDatePicker(); break;
+    case 'open-date': openDatePicker(el.dataset.date || ''); break;
     case 'dp-prev':
       if (DTP) { DTP.m--; if (DTP.m < 0) { DTP.m = 11; DTP.y--; } dpRefresh(); }
       break;
@@ -1968,14 +1997,31 @@ document.addEventListener('click', function(e){
       break;
     }
     case 'dp-cancel': closeDatePicker(); break;
-    case 'dp-confirm':
+    case 'dp-confirm': {
       if (!DTP || !SHEET || !SHEET.form) break;
-      // 允许 0 个日期（等于「无日期待办」）
-      SHEET.form.dates = Array.from(DTP.sel).sort();
-      SHEET.form.time = (DTP.hh || DTP.mm) ? ((DTP.hh || '00') + ':' + (DTP.mm || '00')) : '';
+      const f = SHEET.form;
+      const wheel = (DTP.hh || DTP.mm) ? ((DTP.hh || '00') + ':' + (DTP.mm || '00')) : '';
+      let dates = (f.dates || []).slice();
+      const tm = Object.assign({}, f.timeMap || {});
+      // 从某一行进来的：先把它摘掉，再按本次选择重新加（等于「改日期/改时间」）
+      if (DTP.editDate) {
+        dates = dates.filter(function(d){ return d !== DTP.editDate; });
+        delete tm[DTP.editDate];
+      }
+      Array.from(DTP.sel).forEach(function(d){
+        if (dates.indexOf(d) < 0) dates.push(d);
+        if (wheel) tm[d] = wheel;
+      });
+      dates.sort();
+      const keep = {};
+      dates.forEach(function(d){ if (tm[d]) keep[d] = tm[d]; });
+      f.dates = dates;
+      f.timeMap = keep;
+      haptic(8);
       closeDatePicker();
       refreshDateRow();
       break;
+    }
 
     case 'todo-save': saveTodoSheet(); break;
     case 'todo-edit': {
@@ -2137,14 +2183,15 @@ function saveTodoSheet(opts){
   const note = String(f.note || '').trim().slice(0, 500);
   const progress = Math.max(0, Math.min(100, Math.round(Number(f.progress) || 0)));
   const dates = (Array.isArray(f.dates) ? f.dates : []).slice().sort();
-  const time = f.time || '';
+  const timeMap = {};
+  dates.forEach(function(d){ const v = (f.timeMap || {})[d]; if (v) timeMap[d] = v; });
   const starred = !!f.starred;
   const isNew = !SHEET.todoId;
   if (!isNew) {
     const t = findTodo(SHEET.todoId);
     if (t) {
       t.title = title; t.note = note; t.progress = progress;
-      t.dates = dates; t.time = time; t.listId = listId; t.starred = starred;
+      t.dates = dates; t.timeMap = timeMap; t.listId = listId; t.starred = starred;
       // 保留的日期沿用原完成状态，被移除的日期连同完成记录一起丢掉
       const keep = {};
       Object.keys(t.doneMap || {}).forEach(function(k){
@@ -2158,7 +2205,7 @@ function saveTodoSheet(opts){
     const siblings = DB.todos.filter(t => t.listId === listId && !t.done && typeof t.order === 'number');
     const todo = {
       id: uid(), listId: listId, title: title,
-      note: note, progress: progress, dates: dates, doneMap: {}, time: time, starred: starred,
+      note: note, progress: progress, dates: dates, doneMap: {}, timeMap: timeMap, starred: starred,
       createdAt: Date.now()
     };
     if (siblings.length) todo.order = Math.max.apply(null, siblings.map(t => t.order)) + 1;
@@ -2169,7 +2216,7 @@ function saveTodoSheet(opts){
 
   // 回车连续添加：保留面板与日期，清空内容继续写
   if (isNew && opts && opts.keepOpen) {
-    SHEET.form = { title:'', note:'', progress:0, dates: dates.slice(), time: time, listId: listId, starred: false };
+    SHEET.form = { title:'', note:'', progress:0, dates: dates.slice(), timeMap: Object.assign({}, timeMap), listId: listId, starred: false };
     renderSheet({ kind:'todo', _t: SHEET._t, todoId: null });
     const el = $('#todoTitle');
     if (el) { el.value = ''; try { el.focus({ preventScroll:true }); } catch (e) { el.focus(); } }
@@ -2427,7 +2474,8 @@ function mergeDataset(next){
       title: t.title,
       dates: todoDates(t).slice(),
       doneMap: Object.assign({}, t.doneMap),
-      time: t.time || '', note: t.note || '', progress: t.progress || 0,
+      timeMap: Object.assign({}, t.timeMap),
+      note: t.note || '', progress: t.progress || 0,
       starred: !!t.starred,
       createdAt: t.createdAt
     }));

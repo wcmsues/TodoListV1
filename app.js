@@ -141,6 +141,29 @@ function ink(hex){
     return s.length === 1 ? '0' + s : s;
   }).join('');
 }
+/* 与白色混合提亮，深色模式下的浅色文字用 */
+function tint(hex, t){
+  let h = String(hex || '#8E8E93').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#8E8E93';
+  return '#' + [0, 2, 4].map(function(i){
+    const v0 = parseInt(h.slice(i, i + 2), 16);
+    const v = Math.round(v0 + (255 - v0) * t);
+    const s = v.toString(16);
+    return s.length === 1 ? '0' + s : s;
+  }).join('');
+}
+/* 按比例调暗，用来给卡片头做渐变（f 取 0~1） */
+function shade(hex, f){
+  let h = String(hex || '#8E8E93').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#8E8E93';
+  return '#' + [0, 2, 4].map(function(i){
+    const v = Math.max(0, Math.min(255, Math.round(parseInt(h.slice(i, i + 2), 16) * f)));
+    const s = v.toString(16);
+    return s.length === 1 ? '0' + s : s;
+  }).join('');
+}
 /* ---------- 深浅色 ---------- */
 const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
 const darkMedia = (function(){
@@ -623,17 +646,22 @@ function listCardHTML(list){
   const shown = (UI.hideDone ? all.filter(t => !t.done) : all).slice().sort(todoOrder);
   const openCount = all.filter(t => !t.done).length;
   const items = shown.map(t => cardItemHTML(t, list)).join('') || '<div class="lc-empty">暂无待办</div>';
+  // 头部用列表色做深浅渐变，白字压在上面
+  const headA = ink(list.color);
+  const headB = shade(headA, .8);
 
   return '<article class="list-card" data-list="' + list.id + '">' +
-    '<div class="lc-head" data-act="open-list" data-id="' + list.id + '" style="--c:' + list.color + '">' +
-      iconBadge(list.icon, list.color) +
+    '<div class="lc-head" data-act="open-list" data-id="' + list.id + '" ' +
+      'style="--c:' + list.color + ';--hc:' + headA + ';--hc2:' + headB + '">' +
+      iconBadge(list.icon, list.color, 'is-glass') +
       '<span class="lc-name">' + esc(list.name) + '</span>' +
-      '<span class="lc-count">' + openCount + '</span>' +
+      '<span class="lc-count">' + openCount + '/' + all.length + '</span>' +
       '<svg class="lc-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>' +
     '</div>' +
     '<div class="lc-body">' + items +
       '<button class="lc-add" data-act="add-todo" data-list="' + list.id + '" ' +
-        'style="--c:' + list.color + ';--c-ink:' + ink(list.color) + ';--c-10:' + hexRgba(list.color, .1) + '">' +
+        'style="--c:' + list.color + ';--c-ink:' + ink(list.color) + ';--c-light:' + tint(list.color, .55) +
+        ';--c-10:' + hexRgba(list.color, .1) + '">' +
         '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加待办</button>' +
     '</div></article>';
 }

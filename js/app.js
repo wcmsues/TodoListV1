@@ -174,7 +174,11 @@ function nearestPalette(hex){
   return best;
 }
 /* ---------- 深浅色 ---------- */
-const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
+const THEME_OPTS = [
+  { k:'system', label:'跟随系统' },
+  { k:'light',  label:'浅色' },
+  { k:'dark',   label:'深色' }
+];
 const darkMedia = (function(){
   try { return window.matchMedia('(prefers-color-scheme: dark)'); } catch (e) { return null; }
 })();
@@ -1009,7 +1013,6 @@ function renderSheet(p){
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
-  else if (p.kind === 'theme') sheet.innerHTML = themeSheetHTML();
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
   else if (p.kind === 'confirm') sheet.innerHTML = confirmSheetHTML(p);
 
@@ -1101,11 +1104,9 @@ function settingsHTML(){
             '<span class="switch' + (UI.hideDone ? ' is-on' : '') + '"></span></button>' +
         '</div></div>' +
       '<div class="group"><div class="group-head"><span>外观</span></div>' +
-        '<div class="group-card">' +
-          '<button class="menu-item" data-act="theme">' + svg('moon') +
-            '<span>深色模式</span>' +
-            '<span class="menu-value">' + THEME_LABEL[UI.theme] + '</span>' +
-            '<svg class="menu-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>' +
+        '<div class="group-card"><div class="theme-card">' +
+          themeSegHTML() +
+          '<p class="theme-hint">「跟随系统」时，外观随系统的浅色 / 深色自动切换</p>' +
         '</div></div>' +
       '<div class="group"><div class="group-head"><span>我的列表</span>' +
         '<div class="group-actions">' +
@@ -1342,26 +1343,31 @@ function listPickerHTML(){
   }).join('');
 }
 
-/* ---------- 外观（深色模式） ---------- */
-function themeSheetHTML(){
-  const opts = [
-    { k:'system', label:'跟随系统', sub:'随系统自动打开或关闭深色模式' },
-    { k:'light',  label:'浅色模式' },
-    { k:'dark',   label:'深色模式' }
-  ];
-  return grab() +
-    '<div class="sheet-head"><h2 class="sheet-title">深色模式</h2></div>' +
-    '<div class="sheet-body"><div class="menu-card">' +
-    opts.map(o => {
-      const on = UI.theme === o.k;
-      return '<button class="menu-item" data-act="pick-theme" data-theme="' + o.k + '">' +
-        '<span>' + o.label +
-          (o.sub ? '<small style="display:block;font-size:12.5px;color:var(--text2);margin-top:1px;font-weight:400">' + o.sub + '</small>' : '') +
-        '</span>' +
-        (on ? '<span style="flex:none;color:var(--blue)">' + svg('check') + '</span>' : '') +
-        '</button>';
-    }).join('') +
-    '</div></div>';
+/* ---------- 外观（行内分段控件，即选即生效） ---------- */
+function themeSegHTML(){
+  const idx = Math.max(0, THEME_OPTS.findIndex(o => o.k === UI.theme));
+  return '<div class="theme-seg" role="radiogroup" aria-label="主题">' +
+    '<span class="theme-seg-thumb" aria-hidden="true" style="transform:translateX(' + (idx * 100) + '%)"></span>' +
+    THEME_OPTS.map(o =>
+      '<button class="theme-seg-item' + (o.k === UI.theme ? ' is-active' : '') + '"' +
+      ' role="radio" aria-checked="' + (o.k === UI.theme ? 'true' : 'false') + '"' +
+      ' data-act="pick-theme" data-theme="' + o.k + '">' + o.label + '</button>'
+    ).join('') +
+  '</div>';
+}
+
+/* 切换后只更新控件自身状态，不重绘面板：不闪、不丢滚动位置 */
+function syncThemeSeg(seg){
+  const root = seg || document.querySelector('.theme-seg');
+  if (!root) return;
+  const idx = Math.max(0, THEME_OPTS.findIndex(o => o.k === UI.theme));
+  root.querySelectorAll('.theme-seg-item').forEach(function(b){
+    const on = b.dataset.theme === UI.theme;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-checked', on ? 'true' : 'false');
+  });
+  const thumb = root.querySelector('.theme-seg-thumb');
+  if (thumb) thumb.style.transform = 'translateX(' + (idx * 100) + '%)';
 }
 
 /* ---------- 年份筛选 ---------- */
@@ -1615,19 +1621,15 @@ document.addEventListener('click', function(e){
       // 编辑状态出现在「我的列表」分组里，保持当前滚动位置
       break;
     }
-    case 'theme':
-      UI.editing = false;
-      push('sheet', { kind:'theme' });
-      break;
     case 'pick-theme': {
       const t = el.dataset.theme;
-      if (t !== 'system' && t !== 'light' && t !== 'dark') break;
+      if (!THEME_OPTS.some(o => o.k === t)) break;
+      if (UI.theme === t) break;   // 已经是这个选项，不重复触发
       UI.theme = t;
       saveUI();
       applyTheme();
       haptic(8);
-      back();
-      setTimeout(renderApp, 20);
+      syncThemeSeg(el.closest('.theme-seg'));
       break;
     }
     case 'smart':

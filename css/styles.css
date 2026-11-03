@@ -660,6 +660,29 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .switch.is-on{background:#34C759;}
 .switch.is-on::after{transform:translateX(18px);}
 
+/* 外观：行内分段控件（跟随系统 / 浅色 / 深色），选中块滑动 */
+.theme-card{padding:14px 12px 0;}
+.theme-seg{
+  position:relative;display:flex;padding:3px;border-radius:11px;
+  background:var(--seg);
+}
+.theme-seg-thumb{
+  position:absolute;top:3px;left:3px;bottom:3px;width:calc((100% - 6px) / 3);
+  border-radius:8px;background:var(--seg-thumb);
+  box-shadow:0 1px 3px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.04);
+  transition:transform .26s cubic-bezier(.22,.9,.3,1);
+}
+.theme-seg-item{
+  position:relative;z-index:1;flex:1;height:34px;border-radius:8px;
+  font-size:13.5px;font-weight:500;color:var(--text2);
+  transition:color .2s ease;
+}
+.theme-seg-item.is-active{color:var(--text);font-weight:600;}
+.theme-seg-item:active{opacity:.55;}
+.theme-hint{
+  margin:10px 2px 12px;font-size:12.5px;line-height:1.4;color:var(--text2);
+}
+
 /* Toast */
 .toast{
   position:fixed;left:50%;bottom:calc(76px + var(--safe-b));z-index:200;
@@ -868,6 +891,7 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
    ============================================================ */
 :root{
   --seg:#E7E7EC;
+  --seg-thumb:#FFFFFF;
   --fill:#F2F2F6;
   --fill-2:#F7F7FA;
   --grab:#D5D5DB;
@@ -1099,6 +1123,7 @@ body{background:var(--page);}
   --line:#38383A;
   --blue:#0A84FF;
   --seg:#2C2C2E;
+  --seg-thumb:#636366;
   --fill:#2C2C2E;
   --fill-2:#3A3A3C;
   --grab:#48484A;

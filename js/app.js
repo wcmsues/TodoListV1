@@ -221,6 +221,52 @@ const yearOf = iso => (iso ? String(iso).slice(0, 4) : '');
 const isOverdue = t => !!t.date && !t.done && t.date < todayISO();
 
 /* ============================================================
+   多日期：一条待办可以有多个日期，每个日期独立完成
+   dates: ['2026-11-03', …]（升序、去重）
+   doneMap: { '2026-11-03': '完成于哪天' }，无日期待办用 '' 作键
+   ============================================================ */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function todoDates(t){
+  if (Array.isArray(t.dates)) return t.dates;
+  return t.date ? [t.date] : [];
+}
+function occDone(t, d){
+  return !!(t.doneMap && t.doneMap[d || '']);
+}
+function nextOpenDate(t){
+  const ds = todoDates(t);
+  const open = ds.filter(d => !occDone(t, d));
+  if (open.length) return open[0];
+  return ds.length ? ds[ds.length - 1] : '';
+}
+/* 把 dates / doneMap 同步成 date / done / doneAt 三个派生字段，
+   这样排序、逾期、首页卡片、详情、已完成页都不用改 */
+function syncTodo(t){
+  if (!Array.isArray(t.dates)) t.dates = t.date ? [t.date] : [];
+  if (!t.doneMap || typeof t.doneMap !== 'object') t.doneMap = {};
+  const ds = t.dates;
+  t.date = ds.length ? (ds.filter(d => !t.doneMap[d])[0] || ds[ds.length - 1]) : '';
+  t.done = ds.length ? ds.every(d => !!t.doneMap[d]) : !!t.doneMap[''];
+  if (t.done) {
+    const stamps = (ds.length ? ds.map(d => t.doneMap[d]) : [t.doneMap['']])
+      .filter(s => DATE_RE.test(s || '')).sort();
+    t.doneAt = stamps.length ? stamps[stamps.length - 1] : todayISO();
+  } else {
+    t.doneAt = '';
+  }
+  return t;
+}
+/* 勾选某个日期（B 语义：各日期互不影响）；date 为空表示无日期待办 */
+function toggleOccurrence(t, date){
+  if (!t.doneMap) t.doneMap = {};
+  const key = date || '';
+  if (t.doneMap[key]) delete t.doneMap[key];
+  else t.doneMap[key] = todayISO();
+  syncTodo(t);
+  if (t.done) t.progress = 100;
+}
+
+/* ============================================================
    3. 状态
    ============================================================ */
 let DB = { version:2, lists:[], tags:[], todos:[] };
@@ -294,17 +340,16 @@ function seed(){
     { list:'l5', title:'看《让子弹飞》', note:'周末和朋友一起看' },
     { list:'l5', title:'看《肖申克的救赎》', date:isoOffset(-366), done:true, doneAt:isoOffset(-366) }
   ];
-  const todos = T.map((o, i) => ({
+  const todos = T.map((o, i) => syncTodo({
     id: 's' + (i + 1),
     listId: o.list,
     title: o.title,
-    date: o.date || '',
+    dates: o.date ? [o.date] : [],
+    doneMap: o.done ? { [o.date || '']: o.doneAt || todayISO() } : {},
     time: o.time || '',
     note: o.note || '',
     progress: o.progress || 0,
     starred: !!o.starred,
-    done: !!o.done,
-    doneAt: o.doneAt || '',
     createdAt: Date.now() - (T.length - i) * 60000
   }));
   return { version:2, lists:L, tags:[], todos };
@@ -327,20 +372,32 @@ function normalizeDB(raw){
     if (!t || typeof t !== 'object') return;
     const title = String(t.title || t.text || t.content || '').trim();
     if (!title) return;
-    out.todos.push({
+    const dates = (Array.isArray(t.dates) ? t.dates : [t.date])
+      .filter(d => DATE_RE.test(d || ''))
+      .filter((d, i, a) => a.indexOf(d) === i)
+      .sort();
+    const doneMap = {};
+    if (t.doneMap && typeof t.doneMap === 'object') {
+      Object.keys(t.doneMap).forEach(function(k){
+        if (k !== '' && dates.indexOf(k) < 0) return;
+        doneMap[k] = DATE_RE.test(t.doneMap[k] || '') ? t.doneMap[k] : todayISO();
+      });
+    } else if (t.done) {
+      doneMap[dates.length ? dates[0] : ''] = DATE_RE.test(t.doneAt || '') ? t.doneAt : todayISO();
+    }
+    out.todos.push(syncTodo({
       id: t.id || uid(),
       listId: listIds.indexOf(t.listId) >= 0 ? t.listId : (listIds[0] || ''),
       title: title.slice(0, 200),
-      date: /^\d{4}-\d{2}-\d{2}$/.test(t.date || '') ? t.date : '',
+      dates: dates,
+      doneMap: doneMap,
       time: /^([01]\d|2[0-3]):[0-5]\d$/.test(t.time || '') ? t.time : '',
       note: typeof t.note === 'string' ? t.note.slice(0, 500) : '',
       progress: Math.max(0, Math.min(100, Math.round(Number(t.progress) || 0))),
       starred: !!t.starred,
-      done: !!t.done,
-      doneAt: /^\d{4}-\d{2}-\d{2}$/.test(t.doneAt || '') ? t.doneAt : (t.done ? todayISO() : ''),
       createdAt: Number(t.createdAt) || Date.now(),
       order: typeof t.order === 'number' && isFinite(t.order) ? t.order : undefined
-    });
+    }));
   });
   return out;
 }
@@ -356,10 +413,11 @@ function migrateLegacy(){
     if (!DB.lists.length) DB.lists.push({ id:'l1', name:'收集箱', icon:'box', color:PALETTE[0] });
     const lid = DB.lists[0].id;
     items.forEach(t => {
-      DB.todos.push({
+      DB.todos.push(syncTodo({
         id: uid(), listId: lid, title: String(t.title).trim().slice(0, 200),
-        date:'', tags:[], done: !!t.done, doneAt: t.done ? todayISO() : '', createdAt: Date.now()
-      });
+        dates: [], doneMap: t.done ? { '': todayISO() } : {},
+        time:'', note:'', progress:0, starred:false, createdAt: Date.now()
+      }));
     });
     return items.length;
   } catch (e) { return null; }
@@ -758,9 +816,11 @@ function calLimits(){
   let min = addYearsISO(todayISO(), -1);
   let max = addYearsISO(todayISO(), 1);
   DB.todos.forEach(function(t){
-    if (!t.date) return;
-    if (t.date < min) min = t.date;
-    if (t.date > max) max = t.date;
+    todoDates(t).forEach(function(d){
+      if (!d) return;
+      if (d < min) min = d;
+      if (d > max) max = d;
+    });
   });
   return { min: min, max: max };
 }
@@ -786,7 +846,11 @@ function renderCalWeek(){
   const days = weekDates(calSelDate);
   const counts = {};
   DB.todos.forEach(function(t){
-    if (t.date && !(UI.hideDone && t.done)) counts[t.date] = (counts[t.date] || 0) + 1;
+    todoDates(t).forEach(function(d){
+      if (!d) return;
+      if (UI.hideDone && occDone(t, d)) return;
+      counts[d] = (counts[d] || 0) + 1;
+    });
   });
   const today = todayISO();
   host.innerHTML = days.map(function(iso){
@@ -823,18 +887,25 @@ function renderCalendar(motion){
   $$('#calRange .cal-range-item').forEach(b =>
     b.classList.toggle('is-active', b.dataset.range === range));
 
-  const items = DB.todos
-    .filter(t => t.date && t.date >= bounds.start && t.date <= bounds.end)
-    .filter(t => !(UI.hideDone && t.done))
-    .sort(calOrder);
+  // 一条待办有几个日期就在日历里出现几次，每个日期独立完成
+  const items = [];
+  DB.todos.forEach(function(t){
+    todoDates(t).forEach(function(d){
+      if (!d || d < bounds.start || d > bounds.end) return;
+      const done = occDone(t, d);
+      if (UI.hideDone && done) return;
+      items.push({ todo: t, date: d, done: done, time: t.time || '', createdAt: t.createdAt || 0 });
+    });
+  });
+  items.sort(calOrder);
 
   $('#calCount').textContent = items.length;
 
   const groups = [];
   let cur = null;
-  items.forEach(t => {
-    if (!cur || cur.date !== t.date) { cur = { date: t.date, items: [] }; groups.push(cur); }
-    cur.items.push(t);
+  items.forEach(it => {
+    if (!cur || cur.date !== it.date) { cur = { date: it.date, items: [] }; groups.push(cur); }
+    cur.items.push(it);
   });
 
   const body = $('#calBody');
@@ -926,7 +997,10 @@ function calDayHTML(group){
   '</div>';
 }
 
-function calItemHTML(t){
+function calItemHTML(occ){
+  const t = occ.todo;
+  const date = occ.date;
+  const done = !!occ.done;
   const list = findList(t.listId);
   const color = list ? list.color : PALETTE[0];
   const meta = [];
@@ -936,9 +1010,9 @@ function calItemHTML(t){
   const sep = '<span class="cr-sep">·</span>';
 
   return swipeWrap(
-    '<div class="cal-row' + (t.done ? ' is-done' : '') + '" data-id="' + t.id + '">' +
-      '<button class="cal-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
-        'style="--c:' + ink(color) + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
+    '<div class="cal-row' + (done ? ' is-done' : '') + '" data-id="' + t.id + '" data-date="' + date + '">' +
+      '<button class="cal-check' + (done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
+        'data-date="' + date + '" style="--c:' + ink(color) + '" aria-label="' + (done ? '恢复为未完成' : '标记完成') + '">' +
         '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
       '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
         '<div class="cal-row-title">' +
@@ -1098,12 +1172,12 @@ function renderSheet(p){
     if (t) {
       form = {
         title: t.title, note: t.note || '', progress: t.progress || 0,
-        date: t.date, time: t.time || '', listId: t.listId, starred: !!t.starred
+        dates: todoDates(t).slice(), time: t.time || '', listId: t.listId, starred: !!t.starred
       };
     } else {
       // 所属列表只能从已有列表里选，默认选中第一个
       const lid = (p.listId && findList(p.listId)) ? p.listId : ((DB.lists[0] && DB.lists[0].id) || '');
-      form = { title:'', note:'', progress:0, date: p.date || '', time:'', listId: lid, starred:false };
+      form = { title:'', note:'', progress:0, dates: p.date ? [p.date] : [], time:'', listId: lid, starred:false };
     }
     SHEET = { _t: p._t, kind:'todo', todoId: p.todoId || null, form: form };
   }
@@ -1311,18 +1385,28 @@ function todoSheetHTML(p){
     '</div>';
 }
 
-/* ---------- 日期行（点击后由自定义选择器填写） ---------- */
+/* ---------- 日期行（多日期：一条待办可以有多个日期） ---------- */
 function dateRowHTML(){
   const f = SHEET.form;
-  const dateVal = f.date || '';
-  const text = dateVal ? (fmtDate(dateVal) + (f.time ? ' ' + f.time : '')) : '添加日期与时间';
-  return '<div class="form-card"><div class="form-row date-row">' + svg('calendar', 'ri') +
-    '<button class="date-cell-btn" data-act="open-date">' +
-      '<span class="date-value' + (dateVal ? '' : ' is-empty') + '">' + esc(text) + '</span>' +
-    '</button>' +
-    (dateVal ? '<button class="clear-inline" data-act="clear-date" aria-label="清除日期">' +
-      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
-  '</div></div>';
+  const ds = Array.isArray(f.dates) ? f.dates : [];
+  const timeTxt = f.time ? ' ' + f.time : '';
+  const text = ds.length
+    ? (ds.length === 1 ? fmtDate(ds[0]) + timeTxt : ds.length + ' 个日期' + timeTxt)
+    : '添加日期与时间';
+  return '<div class="form-card">' +
+    '<div class="form-row date-row">' + svg('calendar', 'ri') +
+      '<button class="date-cell-btn" data-act="open-date">' +
+        '<span class="date-value' + (ds.length ? '' : ' is-empty') + '">' + esc(text) + '</span>' +
+      '</button>' +
+      (ds.length ? '<button class="clear-inline" data-act="clear-date" aria-label="清除全部日期">' +
+        '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8" stroke="#fff" stroke-width="1.8" fill="none"/></svg></button>' : '') +
+    '</div>' +
+    (ds.length ? '<div class="date-chips">' + ds.map(function(d){
+      return '<span class="date-chip' + (d === todayISO() ? ' is-today' : '') + '">' + esc(fmtDate(d)) +
+        '<button class="date-chip-x" data-act="rm-date" data-date="' + d + '" aria-label="移除 ' + esc(d) + '">' +
+          '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>';
+    }).join('') + '</div>' : '') +
+  '</div>';
 }
 
 function refreshDateRow(){
@@ -1336,11 +1420,12 @@ let DTP = null;
 function openDatePicker(){
   if (!SHEET || !SHEET.form) return;
   const f = SHEET.form;
-  const base = f.date ? parseISO(f.date) : new Date();
+  const chosen = Array.isArray(f.dates) ? f.dates.slice() : [];
+  const base = chosen.length ? parseISO(chosen[0]) : new Date();
   const parts = String(f.time || '').split(':');
   DTP = {
     y: base.getFullYear(), m: base.getMonth(),
-    date: f.date || '',
+    sel: new Set(chosen),
     hh: f.time ? parts[0] : '',
     mm: f.time ? parts[1] : ''
   };
@@ -1376,7 +1461,8 @@ function datePickerHTML(){
   for (let i = 0; i < lead; i++) cells.push('<span class="dp-cell is-out">' + (prevDays - lead + i + 1) + '</span>');
   for (let d = 1; d <= days; d++) {
     const iso = toISO(new Date(y, m, d));
-    const cls = 'dp-cell' + (DTP.date === iso ? ' is-sel' : '') + (iso === today ? ' is-today' : '');
+    const on = DTP.sel && DTP.sel.has(iso);
+    const cls = 'dp-cell' + (on ? ' is-sel' : '') + (iso === today ? ' is-today' : '');
     cells.push('<button class="' + cls + '" data-act="dp-day" data-date="' + iso + '">' + d + '</button>');
   }
   while (cells.length % 7 !== 0) cells.push('<span class="dp-cell is-out"></span>');
@@ -1399,6 +1485,7 @@ function datePickerHTML(){
         '<div class="dp-ym">' + y + ' 年 ' + (m + 1) + ' 月</div>' +
         '<button class="dp-nav is-next" data-act="dp-next" aria-label="下个月">' + svg('arrowUp') + '</button>' +
       '</div>' +
+      '<div class="dp-selinfo">已选 <b>' + (DTP.sel ? DTP.sel.size : 0) + '</b> 天 · 点日期可多选</div>' +
       '<div class="dp-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>' +
       '<div class="dp-grid">' + cells.join('') + '</div>' +
       '<div class="dp-time">' +
@@ -1608,23 +1695,26 @@ function renderEditList(p){
 /* ============================================================
    11. 数据操作
    ============================================================ */
-function toggleTodo(id){
+function toggleTodo(id, date){
   const t = findTodo(id);
   if (!t) return;
-  t.done = !t.done;
-  t.doneAt = t.done ? todayISO() : '';
-  if (t.done) t.progress = 100;
+  const ds = todoDates(t);
+  // date 有值时勾选那一天；否则勾「最近一个未完成的日期」（无日期待办用 ''）
+  const key = (date !== undefined && date !== null) ? date : (ds.length ? nextOpenDate(t) : '');
+  toggleOccurrence(t, key);
+  const nowDone = occDone(t, key);
   haptic(12);
   save();
 
   // 日历里勾选后先就地播放完成动效，稍后再重排，避免条目立刻跳走
   if (UI.tab === 'calendar' && current().name === 'root' && $('#calBody')) {
-    const row = $('#calBody .cal-row[data-id="' + id + '"]');
-    const check = $('#calBody .cal-check[data-id="' + id + '"]');
-    if (row) row.classList.toggle('is-done', !!t.done);
-    if (check) check.classList.toggle('is-done', !!t.done);
+    const sel = '#calBody .cal-row[data-id="' + id + '"][data-date="' + (key || '') + '"]';
+    const row = $(sel);
+    const check = row ? row.querySelector('.cal-check') : null;
+    if (row) row.classList.toggle('is-done', nowDone);
+    if (check) check.classList.toggle('is-done', nowDone);
     // 开启「隐藏已完成」时，先淡出再重排
-    if (row && t.done && UI.hideDone) {
+    if (row && nowDone && UI.hideDone) {
       setTimeout(function(){ if (row.isConnected) row.classList.add('is-removing'); }, 150);
     }
     setTimeout(function(){
@@ -1734,7 +1824,7 @@ document.addEventListener('click', function(e){
     case 'edit-todo':
       if (UI.sorting) break;
       openTodoSheet(id); break;
-    case 'toggle': toggleTodo(id); break;
+    case 'toggle': toggleTodo(id, el.dataset.date); break;
     case 'clear-search': {
       UI.query = '';
       const input = $('#homeSearch');
@@ -1819,8 +1909,14 @@ document.addEventListener('click', function(e){
     }
     case 'clear-date':
       if (!SHEET || !SHEET.form) break;
-      SHEET.form.date = '';
+      SHEET.form.dates = [];
       SHEET.form.time = '';
+      refreshDateRow();
+      break;
+    case 'rm-date':
+      if (!SHEET || !SHEET.form) break;
+      SHEET.form.dates = (SHEET.form.dates || []).filter(function(d){ return d !== el.dataset.date; });
+      haptic(6);
       refreshDateRow();
       break;
     case 'toggle-star':
@@ -1839,7 +1935,14 @@ document.addEventListener('click', function(e){
       if (DTP) { DTP.m++; if (DTP.m > 11) { DTP.m = 0; DTP.y++; } dpRefresh(); }
       break;
     case 'dp-day':
-      if (DTP) { DTP.date = el.dataset.date || ''; dpRefresh(); }
+      if (DTP) {
+        const iso = el.dataset.date || '';
+        if (!iso) break;
+        if (DTP.sel.has(iso)) DTP.sel.delete(iso);
+        else DTP.sel.add(iso);
+        haptic(6);
+        dpRefresh();
+      }
       break;
     case 'dp-wheel-pick': {
       if (!DTP) break;
@@ -1851,8 +1954,8 @@ document.addEventListener('click', function(e){
     case 'dp-cancel': closeDatePicker(); break;
     case 'dp-confirm':
       if (!DTP || !SHEET || !SHEET.form) break;
-      if (!DTP.date) { toast('请先选择日期'); break; }
-      SHEET.form.date = DTP.date;
+      // 允许 0 个日期（等于「无日期待办」）
+      SHEET.form.dates = Array.from(DTP.sel).sort();
       SHEET.form.time = (DTP.hh || DTP.mm) ? ((DTP.hh || '00') + ':' + (DTP.mm || '00')) : '';
       closeDatePicker();
       refreshDateRow();
@@ -2017,7 +2120,7 @@ function saveTodoSheet(opts){
   if (!listId) { toast('请选择所属列表'); return; }
   const note = String(f.note || '').trim().slice(0, 500);
   const progress = Math.max(0, Math.min(100, Math.round(Number(f.progress) || 0)));
-  const date = f.date;
+  const dates = (Array.isArray(f.dates) ? f.dates : []).slice().sort();
   const time = f.time || '';
   const starred = !!f.starred;
   const isNew = !SHEET.todoId;
@@ -2025,25 +2128,32 @@ function saveTodoSheet(opts){
     const t = findTodo(SHEET.todoId);
     if (t) {
       t.title = title; t.note = note; t.progress = progress;
-      t.date = date; t.time = time; t.listId = listId; t.starred = starred;
+      t.dates = dates; t.time = time; t.listId = listId; t.starred = starred;
+      // 保留的日期沿用原完成状态，被移除的日期连同完成记录一起丢掉
+      const keep = {};
+      Object.keys(t.doneMap || {}).forEach(function(k){
+        if (k === '' ? !dates.length : dates.indexOf(k) >= 0) keep[k] = t.doneMap[k];
+      });
+      t.doneMap = keep;
+      syncTodo(t);
     }
   } else {
     // 该列表手动排过序时，新待办接在最后
     const siblings = DB.todos.filter(t => t.listId === listId && !t.done && typeof t.order === 'number');
     const todo = {
       id: uid(), listId: listId, title: title,
-      note: note, progress: progress, date: date, time: time, starred: starred,
-      done: false, doneAt: '', createdAt: Date.now()
+      note: note, progress: progress, dates: dates, doneMap: {}, time: time, starred: starred,
+      createdAt: Date.now()
     };
     if (siblings.length) todo.order = Math.max.apply(null, siblings.map(t => t.order)) + 1;
-    DB.todos.unshift(todo);
+    DB.todos.unshift(syncTodo(todo));
   }
   save();
   haptic(10);
 
   // 回车连续添加：保留面板与日期，清空内容继续写
   if (isNew && opts && opts.keepOpen) {
-    SHEET.form = { title:'', note:'', progress:0, date: date, time: time, listId: listId, starred: false };
+    SHEET.form = { title:'', note:'', progress:0, dates: dates.slice(), time: time, listId: listId, starred: false };
     renderSheet({ kind:'todo', _t: SHEET._t, todoId: null });
     const el = $('#todoTitle');
     if (el) { el.value = ''; try { el.focus({ preventScroll:true }); } catch (e) { el.focus(); } }
@@ -2295,13 +2405,16 @@ function mergeDataset(next){
     else { DB.lists.push(l); listMap[l.id] = l.id; }
   });
   next.todos.forEach(t => {
-    DB.todos.push({
+    DB.todos.push(syncTodo({
       id: uid(),
       listId: listMap[t.listId] || (DB.lists[0] && DB.lists[0].id) || '',
-      title: t.title, date: t.date, time: t.time || '', note: t.note || '', progress: t.progress || 0,
+      title: t.title,
+      dates: todoDates(t).slice(),
+      doneMap: Object.assign({}, t.doneMap),
+      time: t.time || '', note: t.note || '', progress: t.progress || 0,
       starred: !!t.starred,
-      done: t.done, doneAt: t.doneAt, createdAt: t.createdAt
-    });
+      createdAt: t.createdAt
+    }));
   });
 }
 

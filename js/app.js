@@ -663,10 +663,15 @@ function searchRowHTML(t){
 }
 
 function listCardHTML(list){
-  // 已完成的待办默认留在原位置，只有「隐藏已完成」开启时才过滤掉
+  // 未完成按「列表详情」同一套顺序（手动拖过就用手动顺序，否则按旗标/日期自动排），
+  // 已完成的沉到最后、按完成时间倒序，和详情页保持一致
   const all = DB.todos.filter(t => t.listId === list.id);
-  const shown = (UI.hideDone ? all.filter(t => !t.done) : all).slice().sort(todoOrder);
-  const openCount = all.filter(t => !t.done).length;
+  const open = sortedOpenTodos(list.id);
+  const done = all
+    .filter(t => t.done)
+    .sort((a, b) => String(b.doneAt || '').localeCompare(String(a.doneAt || '')));
+  const shown = UI.hideDone ? open : open.concat(done);
+  const openCount = open.length;
   const items = shown.map(t => cardItemHTML(t, list)).join('') || '<div class="lc-empty">暂无待办</div>';
   // 头部只用一层纯色（苹果系统色）
   return '<article class="list-card" data-list="' + list.id + '">' +
@@ -1641,17 +1646,15 @@ function toggleTodo(id){
   renderApp();
 }
 function moveTodoWithinList(listId, from, to){
-  const items = openTodos(listId);
-  if (from < 0 || to < 0 || from >= items.length || to >= items.length || from === to) return;
-  const moved = items[from], target = items[to];
-  const gi = DB.todos.indexOf(moved);
-  if (gi < 0) return;
-  DB.todos.splice(gi, 1);
-  const ti = DB.todos.indexOf(target);
-  if (from > to) DB.todos.splice(ti, 0, moved);
-  else DB.todos.splice(ti + 1, 0, moved);
-  // 记下手动顺序，退出编辑后依然生效
-  openTodos(listId).forEach(function(t, i){ t.order = i; });
+  // 用界面上的顺序（列表详情）来算，才能把手动顺序记成用户看到的样子；
+  // 之前用的是 DB 里的插入顺序，索引对不上，拖动会挪错条目
+  const items = sortedOpenTodos(listId);
+  if (from < 0 || from >= items.length) return;          // 已完成行不参与排序
+  to = Math.max(0, Math.min(to, items.length - 1));      // 拖进已完成区域时夹到最后一个未完成
+  if (from === to) return;
+  const moved = items.splice(from, 1)[0];
+  items.splice(to, 0, moved);
+  items.forEach(function(t, i){ t.order = i; });
 }
 function deleteTodo(id){
   const i = DB.todos.findIndex(t => t.id === id);

@@ -230,12 +230,12 @@ svg{display:block;}
   letter-spacing:.2px;font-variant-numeric:tabular-nums;
 }
 .lc-arrow{width:14px;height:14px;color:rgba(255,255,255,.9);fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
-/* 头部图标：半透明白底 + 白色字形 */
+/* 头部图标：直接融入渐变底色，只留白色字形 */
 .icon-badge.is-glass{
-  width:28px;height:28px;border-radius:9px;
-  background:rgba(255,255,255,.22);box-shadow:none;
+  width:26px;height:26px;border-radius:0;
+  background:none;box-shadow:none;
 }
-.icon-badge.is-glass svg{width:17px;height:17px;stroke-width:2.1;}
+.icon-badge.is-glass svg{width:21px;height:21px;stroke-width:1.9;}
 
 .lc-body{padding:6px 16px 14px;}
 .lc-item{display:flex;gap:12px;align-items:flex-start;padding:10px 0;}

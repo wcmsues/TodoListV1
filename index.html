@@ -90,8 +90,9 @@
         </button>
         <div class="cal-range" id="calRange">
           <button class="cal-range-item" data-act="cal-range" data-range="day">日</button>
-          <button class="cal-range-item is-active" data-act="cal-range" data-range="week">周</button>
-          <button class="cal-range-item" data-act="cal-range" data-range="month">月</button>
+          <button class="cal-range-item" data-act="cal-range" data-range="week">周</button>
+          <button class="cal-range-item is-active" data-act="cal-range" data-range="month">月</button>
+          <button class="cal-range-item" data-act="cal-range" data-range="quarter">季</button>
         </div>
         <button class="cal-nav" data-act="cal-shift" data-step="1" aria-label="下一段时间">
           <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
@@ -117,15 +118,32 @@
       <div class="head-row">
         <h1 class="page-title">已完成</h1>
         <div class="head-actions">
+          <button class="circle-btn" id="btnReport" data-act="report" aria-label="生成完成报告">
+            <svg viewBox="0 0 24 24"><path d="M7 3.6h6.6L18 8v12.4H7z"/><path d="M13.4 3.6V8H18"/><path d="M10 12.2h5M10 15.6h5"/></svg>
+          </button>
           <button class="circle-btn" id="btnSettingsDone" aria-label="设置">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
         </div>
       </div>
       <div class="chips" id="doneChips"></div>
+      <div class="cal-bar done-bar">
+        <button class="cal-nav" data-act="done-shift" data-step="-1" aria-label="上一段时间">
+          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="cal-range" id="doneRange">
+          <button class="cal-range-item" data-act="done-range" data-range="day">日</button>
+          <button class="cal-range-item is-active" data-act="done-range" data-range="month">月</button>
+          <button class="cal-range-item" data-act="done-range" data-range="quarter">季</button>
+          <button class="cal-range-item" data-act="done-range" data-range="year">年</button>
+        </div>
+        <button class="cal-nav" data-act="done-shift" data-step="1" aria-label="下一段时间">
+          <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
     </header>
     <div class="scroll" id="doneScroll">
-      <div class="section-label"><span>已完成</span><span class="done-label-right"><button class="year-chip" id="btnYearFilter" hidden><span id="yearBtnLabel">年份</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button><span id="doneCount">0</span></span></div>
+      <div class="section-label"><span id="donePeriodLabel">本月</span><span class="done-label-right"><button class="cal-today" id="doneToday" data-act="done-today" hidden>本期</button><button class="year-chip" id="btnYearFilter" hidden><span id="yearBtnLabel">2026年</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button><span id="doneCount">0</span></span></div>
       <div id="doneCard"></div>
       <div class="empty-state" id="doneEmpty" hidden>
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>

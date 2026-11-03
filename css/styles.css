@@ -178,6 +178,11 @@ svg{display:block;}
 .year-chip.is-open{background:var(--fill-2);}
 .year-chip:active{transform:scale(.95);}
 
+/* 已完成：周期切换条 + 报告图片 */
+.done-bar{margin-top:2px;}
+.report-img{width:100%;display:block;border-radius:12px;background:#fff;box-shadow:var(--shadow);}
+.report-hint{margin:10px 4px 2px;font-size:12.5px;color:var(--text2);text-align:center;}
+
 /* 年份菜单：锚在胶囊下方，无遮罩变暗，iOS 菜单的弹出感 */
 .year-backdrop{background:transparent;}
 .year-menu{min-width:186px;padding:6px;}
@@ -519,6 +524,19 @@ body.is-dragging{user-select:none;-webkit-user-select:none;}
 .clear-btn:active{color:var(--text2);}
 
 .pick-card{background:var(--card);border-radius:14px;padding:14px;box-shadow:var(--shadow);}
+
+/* 列表编辑：完成报告模板 */
+.report-card{padding:12px 12px 4px;}
+.report-range{margin:0;}
+.report-fields{margin-top:4px;}
+.rf-label{display:block;font-size:12.5px;color:var(--text2);margin:12px 2px 6px;}
+.rf-input{
+  display:block;width:100%;border:0;outline:none;background:var(--fill);
+  border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px;
+  line-height:1.5;color:var(--text);-webkit-appearance:none;
+}
+textarea.rf-input{resize:none;}
+.report-tip{margin:10px 2px 8px;font-size:12px;line-height:1.5;color:var(--text3);}
 .colors{display:grid;grid-template-columns:repeat(6,1fr);gap:8px 0;justify-items:center;}
 .color-dot{
   width:44px;height:44px;display:flex;align-items:center;justify-content:center;

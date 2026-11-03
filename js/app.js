@@ -224,8 +224,8 @@ const isOverdue = t => !!t.date && !t.done && t.date < todayISO();
    3. 状态
    ============================================================ */
 let DB = { version:2, lists:[], tags:[], todos:[] };
-let UI = { tab:'home', cols:2, doneList:'all', doneYear:'all', editing:false, sorting:false, hideEmpty:false,
-           calRange:'week', hideDone:false, query:'', theme:'light' };
+let UI = { tab:'home', cols:2, doneLists:[], editing:false, sorting:false, hideEmpty:false,
+           calRange:'month', doneRange:'month', hideDone:false, query:'', theme:'light' };
 let navDir = 0;   // 1 推入 / -1 退回 / 0 无方向
 let lastViewName = '';
 let stack = [{ name:'root', params:{} }];
@@ -240,59 +240,92 @@ let suppressClickUntil = 0;
    ============================================================ */
 function seed(){
   const L = [
-    { id:'l1', name:'工作', icon:'briefcase', color:PALETTE[10] },
-    { id:'l2', name:'学习', icon:'book',      color:PALETTE[6] },
-    { id:'l3', name:'生活', icon:'home',      color:PALETTE[4] },
-    { id:'l4', name:'购物', icon:'cart',      color:PALETTE[12] },
-    { id:'l5', name:'电影', icon:'clapper',   color:PALETTE[2] }
+    { id:'l1', name:'UPS岗', icon:'monitor',   color:PALETTE[0], report:{ preset:'ups' } },
+    { id:'l2', name:'工作',  icon:'briefcase', color:PALETTE[10] },
+    { id:'l3', name:'学习',  icon:'book',      color:PALETTE[6] },
+    { id:'l4', name:'生活',  icon:'home',      color:PALETTE[4] },
+    { id:'l5', name:'购物',  icon:'cart',      color:PALETTE[12] },
+    { id:'l6', name:'电影',  icon:'clapper',   color:PALETTE[2] }
   ];
   /* 日期都按「相对今天」的偏移生成，保证任何时候打开都能看到：
-     逾期 / 今天（多个时间）/ 本周 / 本月 / 下月 / 无日期，
-     以及带旗标、带进度、带备注、跨年份已完成的待办 */
+     逾期 / 今天 / 本周 / 本月 / 下月 / 无日期、带旗标与进度，
+     以及跨月、跨季、跨年的已完成（UPS岗的数据可以直接生成报告） */
   const T = [
-    /* 工作：逾期、今天、无日期、本周、本月、旗标、两个年份的已完成 */
-    { list:'l1', title:'写本周周报', date:isoOffset(0), time:'10:00', progress:60,
+    /* ---------- UPS岗：本期计划 + 逾期 + 无日期 ---------- */
+    { list:'l1', title:'UPS 巡检', date:isoOffset(0), time:'15:00',
+      note:'华为 5号楼 8台；重点看告警与风扇转速' },
+    { list:'l1', title:'UPS 健康检查', date:isoOffset(2), time:'09:30',
+      note:'施耐德 3号楼 4台；导出电池曲线与告警记录' },
+    { list:'l1', title:'UPS 停机保养', date:isoOffset(6), time:'22:00', starred:true,
+      note:'伊顿 1号楼 2台；需提前 24 小时报备停电' },
+    { list:'l1', title:'UPS 电池组更换', date:isoOffset(35), time:'10:00', progress:20,
+      note:'维谛 2号楼 6台；备件已到货，先做放电测试' },
+    { list:'l1', title:'UPS 巡检', date:isoOffset(-3), time:'14:00',
+      note:'台达 4号楼 3台；上次漏了机房 B 列' },
+    { list:'l1', title:'整理 UPS 台账',
+      note:'把全年巡检与保养记录归档，补齐品牌和楼号' },
+
+    /* ---------- UPS岗：已完成（本月 2 条 / 本季共 4 条 / 跨年） ---------- */
+    { list:'l1', title:'UPS 健康检查', date:isoOffset(-2), done:true, doneAt:isoOffset(-2),
+      note:'施耐德 3号楼 4台' },
+    { list:'l1', title:'UPS 巡检', date:isoOffset(-1), done:true, doneAt:isoOffset(-1),
+      note:'华为 5号楼 8台' },
+    { list:'l1', title:'UPS 停机保养', date:isoOffset(-12), done:true, doneAt:isoOffset(-12),
+      note:'伊顿 1号楼 2台；更换了两组电容' },
+    { list:'l1', title:'UPS 巡检', date:isoOffset(-30), done:true, doneAt:isoOffset(-30),
+      note:'科华 6号楼 3台' },
+    { list:'l1', title:'UPS 健康检查', date:isoOffset(-70), done:true, doneAt:isoOffset(-70),
+      note:'台达 4号楼 3台' },
+    { list:'l1', title:'UPS 停机保养', date:isoOffset(-120), done:true, doneAt:isoOffset(-120),
+      note:'施耐德 3号楼 4台' },
+    { list:'l1', title:'UPS 巡检', date:isoOffset(-380), done:true, doneAt:isoOffset(-378),
+      note:'山特 7号楼 2台' },
+    { list:'l1', title:'UPS 停机保养', date:isoOffset(-760), done:true, doneAt:isoOffset(-758),
+      note:'维谛 2号楼 6台' },
+
+    /* ---------- 工作 ---------- */
+    { list:'l2', title:'写本周周报', date:isoOffset(0), time:'10:00', progress:60,
       note:'汇总进度、风险与下周计划' },
-    { list:'l1', title:'回复客户需求邮件', date:isoOffset(-1), time:'09:30' },
-    { list:'l1', title:'整理产品需求文档', progress:35,
+    { list:'l2', title:'回复客户需求邮件', date:isoOffset(-1), time:'09:30' },
+    { list:'l2', title:'整理产品需求文档', progress:35,
       note:'先补充核心流程与边界情况' },
-    { list:'l1', title:'准备下周评审材料', date:isoOffset(4), time:'14:00', starred:true,
+    { list:'l2', title:'准备下周评审材料', date:isoOffset(4), time:'14:00', starred:true,
       note:'周五前定稿，提前发到群里' },
-    { list:'l1', title:'提交季度预算表', date:isoOffset(10), time:'11:00' },
-    { list:'l1', title:'提交上月报销单', date:isoOffset(-2), done:true, doneAt:isoOffset(-2) },
-    { list:'l1', title:'归档去年项目资料', date:isoOffset(-380), done:true, doneAt:isoOffset(-380) },
+    { list:'l2', title:'提交季度预算表', date:isoOffset(10), time:'11:00' },
+    { list:'l2', title:'提交上月报销单', date:isoOffset(-2), done:true, doneAt:isoOffset(-2) },
+    { list:'l2', title:'归档去年项目资料', date:isoOffset(-380), done:true, doneAt:isoOffset(-380) },
 
-    /* 学习：无日期、今天、本周、逾期旗标、下月、两个年份的已完成 */
-    { list:'l2', title:'读完《深度工作》第 3 章', progress:45,
+    /* ---------- 学习 ---------- */
+    { list:'l3', title:'读完《深度工作》第 3 章', progress:45,
       note:'每天 20 页，读完写三句总结' },
-    { list:'l2', title:'英语听力练习 30 分钟', date:isoOffset(0), time:'20:00' },
-    { list:'l2', title:'整理笔记到知识库', date:isoOffset(3), time:'21:00', progress:20,
+    { list:'l3', title:'英语听力练习 30 分钟', date:isoOffset(0), time:'20:00' },
+    { list:'l3', title:'整理笔记到知识库', date:isoOffset(3), time:'21:00', progress:20,
       note:'按主题归档，补上标签页目录' },
-    { list:'l2', title:'复习 CSS Grid 布局', date:isoOffset(-2), starred:true },
-    { list:'l2', title:'报名下月线上课程', date:isoOffset(35) },
-    { list:'l2', title:'完成 CSS 布局课程', date:isoOffset(-4), done:true, doneAt:isoOffset(-3) },
-    { list:'l2', title:'读完《人月神话》', date:isoOffset(-740), done:true, doneAt:isoOffset(-740) },
+    { list:'l3', title:'复习 CSS Grid 布局', date:isoOffset(-2), starred:true },
+    { list:'l3', title:'报名下月线上课程', date:isoOffset(35) },
+    { list:'l3', title:'完成 CSS 布局课程', date:isoOffset(-4), done:true, doneAt:isoOffset(-3) },
+    { list:'l3', title:'读完《人月神话》', date:isoOffset(-740), done:true, doneAt:isoOffset(-740) },
 
-    /* 生活：逾期、本周、本月、今天已完成、更早已完成 */
-    { list:'l3', title:'缴纳水电费', date:isoOffset(-1), time:'20:00',
+    /* ---------- 生活 ---------- */
+    { list:'l4', title:'缴纳水电费', date:isoOffset(-1), time:'20:00',
       note:'月底前缴清，避免滞纳金' },
-    { list:'l3', title:'预约一次牙医', date:isoOffset(2), time:'09:30' },
-    { list:'l3', title:'周末大扫除', date:isoOffset(5), time:'15:00',
+    { list:'l4', title:'预约一次牙医', date:isoOffset(2), time:'09:30' },
+    { list:'l4', title:'周末大扫除', date:isoOffset(5), time:'15:00',
       note:'厨房、卫生间、阳台三个区域' },
-    { list:'l3', title:'预约年度体检', date:isoOffset(18), time:'10:30' },
-    { list:'l3', title:'换洗床单被套', date:isoOffset(0), done:true, doneAt:isoOffset(0) },
-    { list:'l3', title:'整理换季衣物', date:isoOffset(-45), done:true, doneAt:isoOffset(-45) },
+    { list:'l4', title:'预约年度体检', date:isoOffset(18), time:'10:30' },
+    { list:'l4', title:'换洗床单被套', date:isoOffset(0), done:true, doneAt:isoOffset(0) },
+    { list:'l4', title:'整理换季衣物', date:isoOffset(-45), done:true, doneAt:isoOffset(-45) },
 
-    /* 购物：今天、无日期、下周、已完成 */
-    { list:'l4', title:'买牛奶和鸡蛋', date:isoOffset(0), time:'18:30' },
-    { list:'l4', title:'买一个收纳盒' },
-    { list:'l4', title:'补货洗衣液', date:isoOffset(7) },
-    { list:'l4', title:'买酱油', date:isoOffset(-3), done:true, doneAt:isoOffset(-3) },
+    /* ---------- 购物 ---------- */
+    { list:'l5', title:'买牛奶和鸡蛋', date:isoOffset(0), time:'18:30' },
+    { list:'l5', title:'买一个收纳盒' },
+    { list:'l5', title:'补货洗衣液', date:isoOffset(7) },
+    { list:'l5', title:'买酱油', date:isoOffset(-3), done:true, doneAt:isoOffset(-3) },
 
-    /* 电影：本周、无日期、去年已完成 */
-    { list:'l5', title:'看《星际穿越》', date:isoOffset(6), time:'19:30' },
-    { list:'l5', title:'看《让子弹飞》', note:'周末和朋友一起看' },
-    { list:'l5', title:'看《肖申克的救赎》', date:isoOffset(-366), done:true, doneAt:isoOffset(-366) }
+    /* ---------- 电影 ---------- */
+    { list:'l6', title:'看《星际穿越》', date:isoOffset(6), time:'19:30' },
+    { list:'l6', title:'看《让子弹飞》', note:'周末和朋友一起看' },
+    { list:'l6', title:'看《肖申克的救赎》', date:isoOffset(-366), done:true, doneAt:isoOffset(-366) }
   ];
   const todos = T.map((o, i) => ({
     id: 's' + (i + 1),
@@ -310,6 +343,24 @@ function seed(){
   return { version:2, lists:L, tags:[], todos };
 }
 
+/* 列表的报告模板：ups 预设 / 自定义词表；null = 通用 */
+function normalizeReport(r){
+  if (!r || typeof r !== 'object') return null;
+  if (r.preset === 'ups') return { preset: 'ups' };
+  if (r.preset === 'custom'){
+    const types = (Array.isArray(r.types) ? r.types : [])
+      .filter(x => x && x.name && Array.isArray(x.words) && x.words.length)
+      .map(x => ({ name: String(x.name).slice(0, 20), words: x.words.map(w => String(w).slice(0, 20)).slice(0, 20) }));
+    const brands = (Array.isArray(r.brands) ? r.brands : [])
+      .filter(x => typeof x === 'string' && x.trim())
+      .map(s => s.trim().slice(0, 20)).slice(0, 50);
+    const unit = typeof r.unit === 'string' ? r.unit.trim().slice(0, 8) : '';
+    if (!types.length && !brands.length && !unit) return null;
+    return { preset: 'custom', types: types, brands: brands, unit: unit };
+  }
+  return null;
+}
+
 function normalizeDB(raw){
   const out = { version:2, lists:[], tags:[], todos:[] };
   if (!raw || typeof raw !== 'object') return out;
@@ -319,7 +370,8 @@ function normalizeDB(raw){
       id: l.id || uid(),
       name: String(l.name || '未命名').slice(0, 40),
       icon: ICONS[l.icon] ? l.icon : 'list',
-      color: nearestPalette(l.color)
+      color: nearestPalette(l.color),
+      report: normalizeReport(l.report)
     });
   });
   const listIds = out.lists.map(l => l.id);
@@ -384,7 +436,7 @@ function saveUI(){
   try {
     localStorage.setItem(UIKEY, JSON.stringify({
       cols: UI.cols, hideEmpty: !!UI.hideEmpty,
-      calRange: UI.calRange, hideDone: !!UI.hideDone,
+      calRange: UI.calRange, doneRange: UI.doneRange, hideDone: !!UI.hideDone,
       theme: UI.theme
     }));
   } catch (e) {}
@@ -407,7 +459,11 @@ function loadAll(){
     const ui = JSON.parse(localStorage.getItem(UIKEY) || '{}');
     if (ui && ui.cols === 1) UI.cols = 1;
     if (ui && ui.hideEmpty === true) UI.hideEmpty = true;
-    if (ui && (ui.calRange === 'day' || ui.calRange === 'week' || ui.calRange === 'month')) UI.calRange = ui.calRange;
+    const CAL_RANGES = { day:1, week:1, month:1, quarter:1 };
+    const DONE_RANGES = { day:1, month:1, quarter:1, year:1 };
+    if (ui && CAL_RANGES[ui.calRange]) UI.calRange = ui.calRange;
+    else if (ui && ui.calRange === 'year') UI.calRange = 'quarter';   // 日历页不再提供「年」
+    if (ui && DONE_RANGES[ui.doneRange]) UI.doneRange = ui.doneRange;
     if (ui && (ui.hideDone === true || ui.calHideDone === true)) UI.hideDone = true;
     if (ui && (ui.theme === 'system' || ui.theme === 'light' || ui.theme === 'dark')) UI.theme = ui.theme;
   } catch (e) {}
@@ -727,31 +783,80 @@ function weekDates(iso){
   return out;
 }
 
-/* 周期：某一天所在的日 / 周（周一到周日）/ 月 */
+/* ============================================================
+   周期：日 / 周 / 月 / 季 / 年（日历与已完成页共用；两页各自开放其中四个）
+   ============================================================ */
 function periodBounds(range, iso){
   const base = parseISO(iso);
+  const y = base.getFullYear(), m = base.getMonth();
   if (range === 'day') return { start: iso, end: iso };
-  if (range === 'month') {
-    return {
-      start: toISO(new Date(base.getFullYear(), base.getMonth(), 1)),
-      end: toISO(new Date(base.getFullYear(), base.getMonth() + 1, 0))
-    };
+  if (range === 'week') {
+    const wd = (base.getDay() + 6) % 7;
+    const mon = new Date(base); mon.setDate(base.getDate() - wd);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    return { start: toISO(mon), end: toISO(sun) };
   }
-  const wd = (base.getDay() + 6) % 7;
-  const mon = new Date(base); mon.setDate(base.getDate() - wd);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return { start: toISO(mon), end: toISO(sun) };
+  if (range === 'month') return { start: toISO(new Date(y, m, 1)), end: toISO(new Date(y, m + 1, 0)) };
+  if (range === 'quarter') {
+    const qs = Math.floor(m / 3) * 3;
+    return { start: toISO(new Date(y, qs, 1)), end: toISO(new Date(y, qs + 3, 0)) };
+  }
+  return { start: toISO(new Date(y, 0, 1)), end: toISO(new Date(y, 11, 31)) };
 }
 function calRangeBounds(range){ return periodBounds(range, calSelDate); }
 
 function addDaysISO(iso, n){
   const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d);
 }
+function addMonthsISO(iso, n){
+  const d = parseISO(iso);
+  const first = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  return toISO(new Date(first.getFullYear(), first.getMonth(), Math.min(d.getDate(), last)));
+}
 function addYearsISO(iso, n){
   const d = parseISO(iso);
   const y = d.getFullYear() + n;
   const last = new Date(y, d.getMonth() + 1, 0).getDate();
   return toISO(new Date(y, d.getMonth(), Math.min(d.getDate(), last)));
+}
+/* 周期平移：日 ±1 天、周 ±7 天、月 ±1 月、季 ±3 月、年 ±1 年 */
+function periodShift(range, iso, step){
+  if (range === 'day') return addDaysISO(iso, step);
+  if (range === 'week') return addDaysISO(iso, 7 * step);
+  if (range === 'month') return addMonthsISO(iso, step);
+  if (range === 'quarter') return addMonthsISO(iso, step * 3);
+  return addYearsISO(iso, step);
+}
+/* 周期文字：11月3日 周一 / 11月3日–9日 / 2026年11月 / 2026 Q4 / 2026年 */
+function periodText(range, start, end){
+  if (range === 'day') return fmtMD(start) + ' 周' + WEEKDAY_CN[parseISO(start).getDay()];
+  if (range === 'week') {
+    if (start.slice(0, 4) !== end.slice(0, 4)) return fmtMDY(start) + '–' + fmtMDY(end);
+    if (start.slice(0, 7) === end.slice(0, 7)) return fmtMD(start) + '–' + parseISO(end).getDate() + '日';
+    return fmtMD(start) + '–' + fmtMD(end);
+  }
+  if (range === 'month') {
+    const s = parseISO(start);
+    return s.getFullYear() + '年' + (s.getMonth() + 1) + '月';
+  }
+  if (range === 'quarter') {
+    const s = parseISO(start);
+    return s.getFullYear() + ' Q' + (Math.floor(s.getMonth() / 3) + 1);
+  }
+  return parseISO(start).getFullYear() + '年';
+}
+/* 当前周期的标题（带「今天 / 本周 / 本月 / 本季 / 本年」前缀） */
+function rangeTitle(range, anchor){
+  const b = periodBounds(range, anchor);
+  const cur = periodBounds(range, todayISO());
+  const isCur = b.start === cur.start && b.end === cur.end;
+  const text = periodText(range, b.start, b.end);
+  if (range === 'day') return isCur ? '今天 · ' + text : text;
+  const prefix = isCur
+    ? (range === 'week' ? '本周 · ' : range === 'month' ? '本月 · ' : range === 'quarter' ? '本季 · ' : '本年 · ')
+    : '';
+  return prefix + text;
 }
 /* 可浏览范围：待办日期跨度 ∪ 今天前后各一年，避免在没数据的年份空翻 */
 function calLimits(){
@@ -764,15 +869,9 @@ function calLimits(){
   });
   return { min: min, max: max };
 }
-/* 前进 / 后退的目标日期：周按整周跳，月按整月跳并夹取日号（1月31日 → 2月28日） */
+/* 日历前进 / 后退的目标日期 */
 function calShiftTarget(range, step){
-  if (range === 'month'){
-    const s = parseISO(calRangeBounds('month').start);
-    const first = new Date(s.getFullYear(), s.getMonth() + step, 1);
-    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-    return toISO(new Date(first.getFullYear(), first.getMonth(), Math.min(parseISO(calSelDate).getDate(), last)));
-  }
-  return addDaysISO(calSelDate, (range === 'week' ? 7 : 1) * step);
+  return periodShift(range, calSelDate, step);
 }
 
 const WEEKDAY_CN = '日一二三四五六';
@@ -855,7 +954,10 @@ function renderCalendar(motion){
   }
   // 「今天」只在翻到别的周期时出现
   const todayBtn = $('#calToday');
-  if (todayBtn) todayBtn.hidden = calIsCurrent();
+  if (todayBtn) {
+    todayBtn.hidden = calIsCurrent();
+    todayBtn.textContent = UI.calRange === 'day' ? '今天' : '本期';
+  }
 }
 
 /* 周条选日后，把列表滚动到对应那天 */
@@ -869,24 +971,15 @@ function scrollToCalDay(iso){
   catch (e) { sc.scrollTop = top; }
 }
 
-/* 当前周期的文字描述（不带「本周 / 本月」前缀） */
+/* 当前周期的文字描述（空状态用，不带「本月」这类前缀） */
 function calPeriodText(){
   const range = UI.calRange;
   const b = calRangeBounds(range);
-  if (range === 'day') {
-    return calSelDate === todayISO() ? '今天' : fmtDate(calSelDate) + ' 周' + WEEKDAY_CN[parseISO(calSelDate).getDay()];
-  }
-  if (range === 'month') {
-    const s = parseISO(b.start);
-    return s.getFullYear() + '年' + (s.getMonth() + 1) + '月';
-  }
-  // 周：同月简写「11月3日–9日」，跨月补月份，跨年补年份
-  if (b.start.slice(0, 4) !== b.end.slice(0, 4)) return fmtMDY(b.start) + '–' + fmtMDY(b.end);
-  if (b.start.slice(0, 7) === b.end.slice(0, 7)) return fmtMD(b.start) + '–' + parseISO(b.end).getDate() + '日';
-  return fmtMD(b.start) + '–' + fmtMD(b.end);
+  if (range === 'day' && calSelDate === todayISO()) return '今天';
+  return periodText(range, b.start, b.end);
 }
 
-/* 当前展示的是否就是今天 / 本周 / 本月 */
+/* 当前展示的是否就是今天 / 本月 / 本季 / 本年 */
 function calIsCurrent(){
   const range = UI.calRange;
   const b = calRangeBounds(range), cur = periodBounds(range, todayISO());
@@ -894,14 +987,7 @@ function calIsCurrent(){
 }
 
 function calRangeTitle(){
-  const range = UI.calRange;
-  if (range === 'day') {
-    return calSelDate === todayISO()
-      ? '今天 · ' + fmtDate(calSelDate) + ' 周' + WEEKDAY_CN[parseISO(calSelDate).getDay()]
-      : calPeriodText();
-  }
-  const prefix = calIsCurrent() ? (range === 'week' ? '本周 · ' : '本月 · ') : '';
-  return prefix + calPeriodText();
+  return rangeTitle(UI.calRange, calSelDate);
 }
 
 function calDayHTML(group){
@@ -949,35 +1035,68 @@ function calItemHTML(t){
     '</div>', t.id);
 }
 
-/* ---------- 已完成 ---------- */
+/* ---------- 已完成（按 日 / 月 / 季 / 年 查看） ---------- */
+let doneAnchor = todayISO();
+
+function doneLimits(){
+  let min = addYearsISO(todayISO(), -1);
+  let max = todayISO();
+  DB.todos.forEach(function(t){
+    if (!t.done || !t.doneAt) return;
+    if (t.doneAt < min) min = t.doneAt;
+    if (t.doneAt > max) max = t.doneAt;
+  });
+  return { min: min, max: max };
+}
+
+/* 已完成页的列表范围：没选 = 全部；选了多个 = 这些列表 */
+function doneInScope(t){
+  return UI.doneLists.length === 0 || UI.doneLists.indexOf(t.listId) >= 0;
+}
+
 function renderDone(){
   const chips = [];
-  const allOn = UI.doneList === 'all';
+  const allOn = UI.doneLists.length === 0;
   chips.push('<button class="chip' + (allOn ? ' is-active' : '') + '" data-act="done-filter" data-id="all" ' +
     'style="--c:#0A84FF;--c-ink:#0A84FF;--c-14:' + hexRgba('#0A84FF', .14) + '">' + svg('list') + '全部</button>');
   DB.lists.forEach(l => {
-    const on = UI.doneList === l.id;
+    const on = UI.doneLists.indexOf(l.id) >= 0;
     chips.push('<button class="chip' + (on ? ' is-active' : '') + '" data-act="done-filter" data-id="' + l.id + '" ' +
       'style="--c:' + l.color + ';--c-ink:' + ink(l.color) + ';--c-14:' + hexRgba(l.color, .14) + '">' +
       svg(l.icon) + esc(l.name) + '</button>');
   });
   $('#doneChips').innerHTML = chips.join('');
 
-  // 年份筛选：只在已完成记录跨多个年份时出现，单年份时不留无效控件
-  const years = doneYears();
-  if (years.length < 2 || (UI.doneYear !== 'all' && years.indexOf(UI.doneYear) < 0)) UI.doneYear = 'all';
+  const range = UI.doneRange;
+  const bounds = periodBounds(range, doneAnchor);
+  $$('#doneRange .cal-range-item').forEach(function(b){
+    b.classList.toggle('is-active', b.dataset.range === range);
+  });
+  const label = $('#donePeriodLabel');
+  if (label) label.textContent = rangeTitle(range, doneAnchor);
+  const todayBtn = $('#doneToday');
+  if (todayBtn) {
+    const cur = periodBounds(range, todayISO());
+    todayBtn.hidden = bounds.start === cur.start && bounds.end === cur.end;
+  }
+
+  // 年份胶囊：跳到指定年份（保留当前 日 / 月 / 季 的位置）
+  const years = doneYears().slice();
+  const anchorYear = yearOf(doneAnchor);
+  if (years.indexOf(anchorYear) < 0) years.push(anchorYear);
+  years.sort().reverse();
   const yearBtn = $('#btnYearFilter');
   if (yearBtn) {
     yearBtn.hidden = years.length < 2;
     const yearLbl = $('#yearBtnLabel');
-    if (yearLbl) yearLbl.textContent = UI.doneYear === 'all' ? '年份' : UI.doneYear + '年';
-    yearBtn.classList.toggle('is-active', UI.doneYear !== 'all');
+    if (yearLbl) yearLbl.textContent = anchorYear + '年';
+    yearBtn.classList.toggle('is-active', anchorYear !== yearOf(todayISO()));
   }
 
   const items = DB.todos.filter(t =>
-    t.done &&
-    (UI.doneList === 'all' || t.listId === UI.doneList) &&
-    (UI.doneYear === 'all' || yearOf(t.doneAt) === UI.doneYear)
+    t.done && t.doneAt &&
+    doneInScope(t) &&
+    t.doneAt >= bounds.start && t.doneAt <= bounds.end
   ).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
 
   $('#doneCount').textContent = items.length;
@@ -986,7 +1105,7 @@ function renderDone(){
   const groups = [];
   let cur = null;
   items.forEach(function(t){
-    const d = t.doneAt || t.date || '';
+    const d = t.doneAt || '';
     if (!cur || cur.date !== d) { cur = { date: d, items: [] }; groups.push(cur); }
     cur.items.push(t);
   });
@@ -997,9 +1116,7 @@ function renderDone(){
   $('#doneEmpty').hidden = items.length > 0;
   const emptyTitle = $('#doneEmpty p');
   if (emptyTitle) {
-    emptyTitle.textContent = UI.doneYear === 'all'
-      ? '还没有已完成的待办'
-      : UI.doneYear + ' 年还没有已完成的待办';
+    emptyTitle.textContent = periodText(range, bounds.start, bounds.end) + ' 还没有已完成的待办';
   }
 }
 
@@ -1037,6 +1154,324 @@ function doneItemHTML(t){
           : '') +
       '</div>' +
     '</div>', t.id);
+}
+
+/* ---------- 完成报告：通用模板 + 列表自定义的领域汇总 ---------- */
+/* 内置 UPS 岗预设；其他列表没配置时只有通用部分（条数 / 时间分布 / 明细） */
+const UPS_REPORT = {
+  preset: 'ups',
+  types: [
+    { name:'健康检查', words:['健康检查','健康巡检','健康'] },
+    { name:'停机保养', words:['停机保养','停机','保养','维护'] },
+    { name:'巡检', words:['巡检','巡查','巡视'] },
+    { name:'维修更换', words:['维修','更换','抢修','故障'] }
+  ],
+  brands: ['施耐德','Schneider','维谛','Vertiv','艾默生','Emerson','伊顿','Eaton','华为','Huawei','台达','Delta','山特','Santak','科华','KSTAR','科士达','艾特网能','英威腾','正泰','德力西','APC','ABB','西门子','Siemens'],
+  unit: '台'
+};
+/* 列表的报告配置；null = 走通用模板（不显示类型/品牌/数值） */
+function listReportCfg(list){
+  if (!list || !list.report || typeof list.report !== 'object') return null;
+  const r = list.report;
+  if (r.preset === 'ups'){
+    return {
+      preset: 'ups',
+      types: Array.isArray(r.types) && r.types.length ? r.types : UPS_REPORT.types,
+      brands: Array.isArray(r.brands) && r.brands.length ? r.brands : UPS_REPORT.brands,
+      unit: typeof r.unit === 'string' ? r.unit : UPS_REPORT.unit
+    };
+  }
+  if (r.preset === 'custom'){
+    const types = (Array.isArray(r.types) ? r.types : []).filter(x => x && x.name && Array.isArray(x.words) && x.words.length);
+    const brands = (Array.isArray(r.brands) ? r.brands : []).filter(Boolean);
+    const unit = typeof r.unit === 'string' ? r.unit.trim() : '';
+    if (!types.length && !brands.length && !unit) return null;
+    return { preset: 'custom', types: types, brands: brands, unit: unit };
+  }
+  return null;
+}
+function reportUnitsOf(t, unit){
+  if (!unit) return 0;
+  const u = unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('(\\d+(?:\\.\\d+)?)\\s*' + u, 'g');
+  const text = (t.note || '') + ' ' + (t.title || '');
+  let sum = 0, m;
+  while ((m = re.exec(text))) sum += Number(m[1]);
+  return sum;
+}
+function reportTypeOf(t, cfg){
+  const text = (t.title || '') + ' ' + (t.note || '');
+  for (let i = 0; i < cfg.types.length; i++){
+    const g = cfg.types[i];
+    for (let j = 0; j < g.words.length; j++){
+      if (text.indexOf(g.words[j]) >= 0) return g.name;
+    }
+  }
+  return '';
+}
+function reportBrandOf(t, cfg){
+  const text = (t.title || '') + ' ' + (t.note || '');
+  for (let i = 0; i < cfg.brands.length; i++){
+    if (text.indexOf(cfg.brands[i]) >= 0) return cfg.brands[i];
+  }
+  return '';
+}
+/* 时间分布：月报按周、季报按月、年报按季度；日报没有 */
+function reportTimeRows(items, range, bounds){
+  if (range === 'month'){
+    const counts = [0, 0, 0, 0, 0];
+    items.forEach(function(t){
+      const d = Number(t.doneAt.slice(8, 10));
+      counts[Math.min(4, Math.floor((d - 1) / 7))]++;
+    });
+    return counts.map((n, i) => ({ label: '第' + (i + 1) + '周', n: n })).filter(r => r.n);
+  }
+  if (range === 'quarter'){
+    const s = parseISO(bounds.start);
+    const rows = [];
+    for (let i = 0; i < 3; i++){
+      const m = s.getMonth() + i;
+      const n = items.filter(t => Number(t.doneAt.slice(5, 7)) === m + 1).length;
+      if (n) rows.push({ label: (m + 1) + '月', n: n });
+    }
+    return rows;
+  }
+  if (range === 'year'){
+    const rows = [];
+    for (let q = 0; q < 4; q++){
+      const n = items.filter(t => Math.floor((Number(t.doneAt.slice(5, 7)) - 1) / 3) === q).length;
+      if (n) rows.push({ label: 'Q' + (q + 1), n: n });
+    }
+    return rows;
+  }
+  return [];
+}
+function reportListRows(items){
+  const map = {};
+  items.forEach(function(t){ map[t.listId] = (map[t.listId] || 0) + 1; });
+  return Object.keys(map).map(function(id){
+    const l = findList(id);
+    return { label: l ? l.name : '未分组', n: map[id] };
+  }).sort(function(a, b){ return b.n - a.n; });
+}
+/* 组装报告：通用块 +（只选了一个列表且它有配置时的）领域块 */
+function buildReportModel(items, range, bounds){
+  const sel = UI.doneLists.slice();
+  const single = sel.length === 1 ? findList(sel[0]) : null;
+  const cfg = single ? listReportCfg(single) : null;
+  const sections = [];
+
+  const timeRows = reportTimeRows(items, range, bounds);
+  if (timeRows.length){
+    const head = range === 'month' ? '按周分布' : range === 'quarter' ? '按月分布' : '按季度分布';
+    sections.push({ head: head, rows: timeRows });
+  }
+  if (sel.length !== 1) sections.push({ head: '按列表', rows: reportListRows(items) });
+
+  let unitTotal = 0;
+  if (cfg){
+    const typeMap = {}, brandMap = {};
+    items.forEach(function(t){
+      const u = reportUnitsOf(t, cfg.unit);
+      unitTotal += u;
+      const ty = reportTypeOf(t, cfg);
+      if (ty){
+        if (!typeMap[ty]) typeMap[ty] = { n: 0, u: 0 };
+        typeMap[ty].n++; typeMap[ty].u += u;
+      }
+      const br = reportBrandOf(t, cfg);
+      if (br){
+        if (!brandMap[br]) brandMap[br] = { n: 0, u: 0 };
+        brandMap[br].n++; brandMap[br].u += u;
+      }
+    });
+    const typeRows = cfg.types.map(x => x.name).filter(n => typeMap[n])
+      .map(n => ({ label: n, n: typeMap[n].n, u: typeMap[n].u }));
+    if (typeRows.length) sections.push({ head: '按类型', rows: typeRows, unit: cfg.unit });
+    const brandRows = Object.keys(brandMap)
+      .map(k => ({ label: k, n: brandMap[k].n, u: brandMap[k].u }))
+      .sort((a, b) => (b.u - a.u) || (b.n - a.n));
+    if (brandRows.length) sections.push({ head: '按品牌', rows: brandRows, unit: cfg.unit });
+  }
+  return { cfg: cfg, sections: sections, unitTotal: unitTotal, single: single };
+}
+
+function drawReportImage(opt){
+  const W = 1080, PAD = 64, INNER = W - PAD * 2;
+  const FONT = '-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif';
+  const cvs = document.createElement('canvas');
+  const ctx = cvs.getContext('2d');
+  function font(size, weight){ ctx.font = (weight || 400) + ' ' + size + 'px ' + FONT; }
+  function wrap(text, maxW, maxLines){
+    const chars = String(text == null ? '' : text).split('');
+    const lines = [];
+    let line = '';
+    for (let i = 0; i < chars.length; i++){
+      const test = line + chars[i];
+      if (line && ctx.measureText(test).width > maxW){
+        lines.push(line);
+        line = chars[i];
+        if (maxLines && lines.length >= maxLines) return lines;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return maxLines ? lines.slice(0, maxLines) : lines;
+  }
+
+  const items = opt.items;
+  const model = opt.model;
+  const cfg = model.cfg;
+  const unit = cfg && cfg.unit ? cfg.unit : '';
+  const titleH = 58, subH = 40, itemH = 44;
+
+  font(46, 700);
+  const titleLines = wrap(opt.title, INNER);
+
+  const subParts = ['完成 ' + items.length + ' 项'];
+  if (unit && model.unitTotal) subParts.push('共 ' + model.unitTotal + ' ' + unit);
+  subParts.push(cfg ? '按列表自定义模板汇总' : '通用模板');
+  font(24, 400);
+  const subLines = wrap(subParts.join(' · '), INNER);
+
+  const details = items.map(function(t){
+    const parts = [];
+    if (opt.multi){
+      const l = findList(t.listId);
+      if (l) parts.push(l.name);
+    }
+    if (unit){
+      const u = reportUnitsOf(t, unit);
+      if (u && (t.note || '').indexOf(unit) < 0) parts.push(u + ' ' + unit);
+    }
+    if (t.note) parts.push(t.note);
+    font(26, 500);
+    const tl = wrap(t.title, INNER - 170, 2);
+    font(22, 400);
+    const ml = parts.length ? wrap(parts.join(' · '), INNER - 170, 2) : [];
+    return { t: t, tl: tl, ml: ml, h: 16 + tl.length * 36 + ml.length * 30 + 22 };
+  });
+  const detailH = details.reduce(function(s, d){ return s + d.h; }, 0);
+
+  // 高度要和绘制顺序完全一致，否则页脚会压到明细上
+  const yStart = 96 + titleLines.length * titleH + 12 + subLines.length * subH + 8 + 40;
+  let yEnd = yStart;
+  model.sections.forEach(function(s){ yEnd += 50 + s.rows.length * itemH + 14; });
+  yEnd += 50 + detailH;
+  const H = yEnd + 96;
+
+  cvs.width = W;
+  cvs.height = H;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  let y = 96;
+  ctx.textBaseline = 'alphabetic';
+  font(46, 700);
+  ctx.fillStyle = '#1C1C1E';
+  titleLines.forEach(function(l){ ctx.fillText(l, PAD, y); y += titleH; });
+  y += 12;
+  font(24, 400);
+  ctx.fillStyle = '#8E8E93';
+  subLines.forEach(function(l){ ctx.fillText(l, PAD, y); y += subH; });
+
+  y += 8;
+  ctx.strokeStyle = '#ECECF0';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+  y += 40;
+
+  function sectionHead(text){
+    font(28, 700);
+    ctx.fillStyle = '#1C1C1E';
+    ctx.fillText(text, PAD, y + 26);
+    y += 50;
+  }
+  function sumRow(label, right){
+    font(26, 400);
+    ctx.fillStyle = '#1C1C1E';
+    ctx.fillText(label, PAD, y + 26);
+    font(24, 400);
+    ctx.fillStyle = '#8E8E93';
+    const w = ctx.measureText(right).width;
+    ctx.fillText(right, W - PAD - w, y + 26);
+    y += itemH;
+  }
+
+  model.sections.forEach(function(s){
+    sectionHead(s.head);
+    s.rows.forEach(function(r){
+      const right = r.n + ' 项' + (s.unit && r.u ? ' · ' + r.u + ' ' + s.unit : '');
+      sumRow(r.label, right);
+    });
+    y += 14;
+  });
+
+  sectionHead('明细');
+  details.forEach(function(d){
+    const t = d.t;
+    font(22, 400);
+    ctx.fillStyle = '#8E8E93';
+    ctx.fillText(fmtMD(t.doneAt), PAD, y + 26);
+    let ty = y + 26;
+    font(26, 500);
+    ctx.fillStyle = '#1C1C1E';
+    d.tl.forEach(function(l){ ctx.fillText(l, PAD + 170, ty); ty += 36; });
+    font(22, 400);
+    ctx.fillStyle = '#8E8E93';
+    let my = ty + 4;
+    d.ml.forEach(function(l){ ctx.fillText(l, PAD + 170, my); my += 30; });
+    y += d.h;
+  });
+
+  font(20, 400);
+  ctx.fillStyle = '#C7C7CC';
+  ctx.fillText('生成于 ' + new Date().toLocaleString('zh-CN'), PAD, H - 48);
+  const noteTxt = cfg ? '类型 / 品牌 / 数值由标题与备注自动识别' : '通用报告：按完成时间统计';
+  const nw = ctx.measureText(noteTxt).width;
+  ctx.fillText(noteTxt, W - PAD - nw, H - 48);
+
+  return { dataURL: cvs.toDataURL('image/png'), width: W, height: H };
+}
+
+function openReportSheet(){
+  const range = UI.doneRange;
+  const bounds = periodBounds(range, doneAnchor);
+  const items = DB.todos.filter(t =>
+    t.done && t.doneAt &&
+    doneInScope(t) &&
+    t.doneAt >= bounds.start && t.doneAt <= bounds.end
+  ).sort((a, b) => String(a.doneAt).localeCompare(String(b.doneAt)));
+  if (!items.length) { toast('当前筛选下没有已完成的待办'); return; }
+  const model = buildReportModel(items, range, bounds);
+  const period = periodText(range, bounds.start, bounds.end);
+  const sel = UI.doneLists.slice();
+  const name = sel.length === 0
+    ? '全部列表'
+    : (sel.length === 1 ? ((findList(sel[0]) || {}).name || '列表') : sel.length + ' 个列表');
+  const title = name + ' · ' + period;
+  const img = drawReportImage({ title: title, items: items, model: model, multi: sel.length !== 1 });
+  push('sheet', {
+    kind: 'report',
+    dataURL: img.dataURL,
+    filename: name + '-' + period.replace(/\s+/g, '') + '-完成报告.png',
+    _t: uid()
+  });
+}
+
+function reportSheetHTML(p){
+  return grab() +
+    '<div class="sheet-head"><h2 class="sheet-title">完成报告</h2>' +
+      '<button class="circle-btn" data-act="close-sheet" aria-label="关闭">' + svg('close') + '</button></div>' +
+    '<div class="sheet-body">' +
+      '<img class="report-img" src="' + p.dataURL + '" alt="完成报告" />' +
+      '<p class="report-hint">手机上也可以长按图片保存</p>' +
+      '<div class="sheet-actions">' +
+        '<button class="ghost-btn" data-act="close-sheet">关闭</button>' +
+        '<button class="primary-btn" data-act="save-report">保存图片</button>' +
+      '</div>' +
+    '</div>';
 }
 
 /* ---------- 列表详情 ---------- */
@@ -1123,6 +1558,7 @@ function renderSheet(p){
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
+  else if (p.kind === 'report') sheet.innerHTML = reportSheetHTML(p);
   else if (p.kind === 'confirm') sheet.innerHTML = confirmSheetHTML(p);
 
   // 新建待办时自动聚焦标题（每次打开只聚焦一次）
@@ -1500,18 +1936,22 @@ function openYearMenu(){
   if (!btn || !app) return;
   closeYearMenu();
   haptic(8);
-  const opts = ['all'].concat(doneYears());
+  const anchorYear = yearOf(doneAnchor);
+  const yearList = doneYears().slice();
+  if (yearList.indexOf(anchorYear) < 0) yearList.push(anchorYear);
+  yearList.sort().reverse();
+  const opts = yearList;
   const host = document.createElement('div');
   host.className = 'ctx-host ctx-host-year';
   host.innerHTML =
     '<div class="ctx-backdrop year-backdrop" data-act="year-close"></div>' +
-    '<div class="ctx-menu year-menu" role="menu" aria-label="按年份筛选">' +
+    '<div class="ctx-menu year-menu" role="menu" aria-label="跳到年份">' +
       opts.map(function(y){
-        const on = UI.doneYear === y;
+        const on = anchorYear === y;
         return '<button class="ctx-item year-item' + (on ? ' is-selected' : '') + '"' +
           ' role="menuitemradio" aria-checked="' + (on ? 'true' : 'false') + '"' +
           ' data-act="pick-year" data-year="' + y + '">' +
-          '<span>' + (y === 'all' ? '全部年份' : y + ' 年') + '</span>' +
+          '<span>' + y + ' 年</span>' +
           (on ? svg('check') : '') + '</button>';
       }).join('') +
     '</div>';
@@ -1579,9 +2019,15 @@ function renderEditList(p){
       key: key, isNew: isNew, listId: p.listId || null,
       name: list ? list.name : '',
       color: list ? list.color : PALETTE[0],
-      icon: list ? list.icon : 'list'
+      icon: list ? list.icon : 'list',
+      report: list && list.report ? JSON.parse(JSON.stringify(list.report)) : { preset: 'generic' }
     };
   }
+  if (!EDIT.report) EDIT.report = { preset: 'generic' };
+  const rp = EDIT.report.preset || 'generic';
+  const rTypes = (EDIT.report.types && EDIT.report.types.length ? EDIT.report.types : (rp === 'ups' ? UPS_REPORT.types : []));
+  const rBrands = (EDIT.report.brands && EDIT.report.brands.length ? EDIT.report.brands : (rp === 'ups' ? UPS_REPORT.brands : []));
+  const rUnit = typeof EDIT.report.unit === 'string' ? EDIT.report.unit : (rp === 'ups' ? UPS_REPORT.unit : '');
 
   const iconBlocks = ICON_GROUPS.map(g =>
     '<div class="icon-group-label">' + g.label + '</div>' +
@@ -1608,7 +2054,51 @@ function renderEditList(p){
     '<div class="pick-card"><div class="colors">' + dots + '</div></div>' +
     '<div class="field-label">列表图标</div>' +
     '<div class="pick-card">' + iconBlocks + '</div>' +
+    '<div class="field-label">完成报告</div>' +
+    '<div class="pick-card report-card">' +
+      '<div class="cal-range report-range">' +
+        reportPresetBtn(rp, 'generic', '通用') +
+        reportPresetBtn(rp, 'ups', 'UPS 岗') +
+        reportPresetBtn(rp, 'custom', '自定义') +
+      '</div>' +
+      (rp === 'custom' ? reportFieldsHTML(rTypes, rBrands, rUnit) : '') +
+      '<p class="report-tip">' +
+        (rp === 'generic'
+          ? '通用报告：只统计条数、时间分布和明细。'
+          : rp === 'ups'
+            ? '按 UPS 岗预设识别类型、品牌与台数；切到「自定义」可改词表。'
+            : '按填写的类别/品牌/单位汇总；没匹配到的条目不会进入汇总。') +
+      '</p>' +
+    '</div>' +
     (isNew ? '' : '<button class="danger-btn" data-act="del-current-list">删除此列表</button>');
+}
+
+function reportPresetBtn(cur, key, label){
+  return '<button class="cal-range-item' + (cur === key ? ' is-active' : '') + '" ' +
+    'data-act="report-preset" data-preset="' + key + '">' + label + '</button>';
+}
+function reportTypesText(types){
+  return (types || []).map(function(t){ return t.name + '=' + (t.words || []).join(','); }).join('\n');
+}
+function reportParseTypes(text){
+  return String(text || '').split('\n').map(function(line){
+    const i = line.indexOf('=');
+    if (i < 0) return null;
+    const name = line.slice(0, i).trim();
+    const words = line.slice(i + 1).split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+    if (!name || !words.length) return null;
+    return { name: name.slice(0, 12), words: words.slice(0, 12) };
+  }).filter(Boolean);
+}
+function reportFieldsHTML(types, brands, unit){
+  return '<div class="report-fields">' +
+    '<label class="rf-label">类别（每行：名称=关键词1,关键词2）</label>' +
+    '<textarea class="rf-input" id="reportTypes" rows="3" placeholder="健康检查=健康检查,健康巡检">' + esc(reportTypesText(types)) + '</textarea>' +
+    '<label class="rf-label">品牌（逗号分隔）</label>' +
+    '<textarea class="rf-input" id="reportBrands" rows="2" placeholder="施耐德,伊顿,华为">' + esc((brands || []).join(',')) + '</textarea>' +
+    '<label class="rf-label">数值单位（备注里「12 台」按此统计，留空不统计）</label>' +
+    '<input class="rf-input" id="reportUnit" value="' + esc(unit || '') + '" placeholder="台 / 次 / 件" />' +
+  '</div>';
 }
 
 /* ============================================================
@@ -1688,7 +2178,7 @@ function deleteList(id){
     onOk: function(){
       DB.lists = DB.lists.filter(l => l.id !== id);
       DB.todos = DB.todos.filter(t => t.listId !== id);
-      if (UI.doneList === id) UI.doneList = 'all';
+      UI.doneLists = UI.doneLists.filter(x => x !== id);
       save();
       const cur = current();
       if (cur.name === 'editList') { EDIT = null; back(); }
@@ -1757,15 +2247,75 @@ document.addEventListener('click', function(e){
       break;
 
     /* Tab */
-    case 'done-filter':
-      UI.doneList = id; renderDone(); break;
-    case 'pick-year':
-      // 菜单里选年份：就地生效，不压弹层也不返回
-      closeYearMenu();
-      UI.doneYear = el.dataset.year;
+    case 'done-filter': {
+      // 多选：点「全部」清空选择；点列表则加/减
+      if (id === 'all') UI.doneLists = [];
+      else {
+        const i = UI.doneLists.indexOf(id);
+        if (i >= 0) UI.doneLists.splice(i, 1);
+        else UI.doneLists.push(id);
+      }
+      haptic(6);
+      renderDone();
+      break;
+    }
+    case 'done-range': {
+      const next = el.dataset.range || 'month';
+      if (next === UI.doneRange) break;
+      UI.doneRange = next;
+      saveUI();
+      haptic(6);
+      renderDone();
+      break;
+    }
+    case 'done-shift': {
+      const step = Number(el.dataset.step) || 1;
+      const target = periodShift(UI.doneRange, doneAnchor, step);
+      const tb = periodBounds(UI.doneRange, target);
+      const lim = doneLimits();
+      if (tb.end < lim.min) { haptic(12); toast('已到最早可查看的时间'); break; }
+      if (tb.start > lim.max) { haptic(12); toast('已到最晚可查看的时间'); break; }
+      doneAnchor = target;
       haptic(8);
       renderDone();
       break;
+    }
+    case 'done-today':
+      doneAnchor = todayISO();
+      haptic(8);
+      renderDone();
+      try { $('#doneScroll').scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+      break;
+    case 'report':
+      openReportSheet();
+      break;
+    case 'save-report': {
+      const cur = current();
+      const p = cur && cur.name === 'sheet' ? cur.params : null;
+      if (!p || !p.dataURL) break;
+      try {
+        const a = document.createElement('a');
+        a.href = p.dataURL;
+        a.download = p.filename || 'report.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast('已保存图片');
+      } catch (e) { toast('保存失败：' + e.message); }
+      break;
+    }
+    case 'pick-year': {
+      // 年份胶囊：把锚点平移到该年的同一月/日
+      closeYearMenu();
+      const y = Number(el.dataset.year);
+      if (!y) break;
+      const a = parseISO(doneAnchor);
+      const last = new Date(y, a.getMonth() + 1, 0).getDate();
+      doneAnchor = toISO(new Date(y, a.getMonth(), Math.min(a.getDate(), last)));
+      haptic(8);
+      renderDone();
+      break;
+    }
     case 'year-close':
       closeYearMenu(); break;
 
@@ -1790,7 +2340,7 @@ document.addEventListener('click', function(e){
     }
     case 'smart':
       UI.tab = id === 'done' ? 'done' : 'home';
-      UI.doneList = 'all';
+      UI.doneLists = [];
       UI.sorting = false;
       back();
       break;
@@ -1816,6 +2366,25 @@ document.addEventListener('click', function(e){
     case 'pick-color': if (EDIT) { EDIT.color = el.dataset.color; rerenderEdit(); } break;
     case 'pick-icon':  if (EDIT) { EDIT.icon = el.dataset.icon; rerenderEdit(); } break;
     case 'clear-name': if (EDIT) { EDIT.name = ''; rerenderEdit(); focusName(); } break;
+    case 'report-preset': {
+      if (!EDIT) break;
+      const preset = el.dataset.preset || 'generic';
+      const cur = EDIT.report || {};
+      if (preset === 'generic') EDIT.report = { preset: 'generic' };
+      else if (preset === 'ups') EDIT.report = { preset: 'ups' };
+      else {
+        const fromUps = cur.preset === 'ups';
+        EDIT.report = {
+          preset: 'custom',
+          types: fromUps ? UPS_REPORT.types.map(x => ({ name: x.name, words: x.words.slice() })) : (cur.types || []).slice(),
+          brands: fromUps ? UPS_REPORT.brands.slice() : (cur.brands || []).slice(),
+          unit: fromUps ? UPS_REPORT.unit : (cur.unit || '')
+        };
+      }
+      haptic(6);
+      rerenderEdit();
+      break;
+    }
     case 'save-list': saveList(); break;
     case 'del-current-list': if (EDIT && !EDIT.isNew) deleteList(EDIT.listId); break;
 
@@ -1995,6 +2564,12 @@ document.addEventListener('input', function(e){
     return;
   }
   if (el.id === 'listName' && EDIT) { EDIT.name = el.value; return; }
+  if (el.id === 'reportTypes' && EDIT && EDIT.report) { EDIT.report.types = reportParseTypes(el.value); return; }
+  if (el.id === 'reportBrands' && EDIT && EDIT.report) {
+    EDIT.report.brands = el.value.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+    return;
+  }
+  if (el.id === 'reportUnit' && EDIT && EDIT.report) { EDIT.report.unit = el.value.trim(); return; }
 });
 /* 时间滚轮滚动 → 同步选中值 */
 document.addEventListener('scroll', function(e){
@@ -2082,12 +2657,21 @@ function saveList(){
   if (!EDIT) return;
   const name = String(EDIT.name || '').trim();
   if (!name) { toast('请输入列表名称'); return; }
+  const r = EDIT.report || { preset: 'generic' };
+  let report = null;
+  if (r.preset === 'ups') report = { preset: 'ups' };
+  else if (r.preset === 'custom'){
+    const types = (r.types || []).filter(x => x && x.name && x.words && x.words.length);
+    const brands = (r.brands || []).filter(Boolean);
+    const unit = String(r.unit || '').trim();
+    if (types.length || brands.length || unit) report = { preset: 'custom', types: types, brands: brands, unit: unit };
+  }
   if (EDIT.isNew) {
-    DB.lists.push({ id: uid(), name: name.slice(0, 20), icon: EDIT.icon, color: EDIT.color });
+    DB.lists.push({ id: uid(), name: name.slice(0, 20), icon: EDIT.icon, color: EDIT.color, report: report });
   } else {
     const l = findList(EDIT.listId);
     if (!l) return;
-    l.name = name.slice(0, 20); l.icon = EDIT.icon; l.color = EDIT.color;
+    l.name = name.slice(0, 20); l.icon = EDIT.icon; l.color = EDIT.color; l.report = report;
   }
   save();
   EDIT = null;
@@ -2356,8 +2940,8 @@ function resetAll(){
 
 function resetAllNow(){
   DB = { version:2, lists:[], tags:[], todos:[] };
-  UI.doneList = 'all';
-  UI.doneYear = 'all';
+  UI.doneLists = [];
+  doneAnchor = todayISO();
   UI.sorting = false;
   UI.editing = false;
   save();

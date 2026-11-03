@@ -153,16 +153,16 @@ function tint(hex, t){
     return s.length === 1 ? '0' + s : s;
   }).join('');
 }
-/* 按比例调暗，用来给卡片头做渐变（f 取 0~1） */
-function shade(hex, f){
+/* 纯色头部上的文字色：亮色（黄/绿/青/橙）配深色字，其余配白字 */
+function onColor(hex){
   let h = String(hex || '#8E8E93').replace('#', '');
   if (h.length === 3) h = h.split('').map(c => c + c).join('');
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#8E8E93';
-  return '#' + [0, 2, 4].map(function(i){
-    const v = Math.max(0, Math.min(255, Math.round(parseInt(h.slice(i, i + 2), 16) * f)));
-    const s = v.toString(16);
-    return s.length === 1 ? '0' + s : s;
-  }).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#FFFFFF';
+  const lin = v => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  const lum = 0.2126 * lin(parseInt(h.slice(0, 2), 16)) +
+              0.7152 * lin(parseInt(h.slice(2, 4), 16)) +
+              0.0722 * lin(parseInt(h.slice(4, 6), 16));
+  return 1.05 / (lum + 0.05) >= 3.2 ? '#FFFFFF' : '#1C1C1E';
 }
 /* ---------- 深浅色 ---------- */
 const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
@@ -647,13 +647,10 @@ function listCardHTML(list){
   const shown = (UI.hideDone ? all.filter(t => !t.done) : all).slice().sort(todoOrder);
   const openCount = all.filter(t => !t.done).length;
   const items = shown.map(t => cardItemHTML(t, list)).join('') || '<div class="lc-empty">暂无待办</div>';
-  // 头部用列表色做深浅渐变，白字压在上面
-  const headA = ink(list.color);
-  const headB = shade(headA, .8);
-
+  // 头部只用一层纯色（苹果系统色），文字按对比度选白或深
   return '<article class="list-card" data-list="' + list.id + '">' +
     '<div class="lc-head" data-act="open-list" data-id="' + list.id + '" ' +
-      'style="--c:' + list.color + ';--hc:' + headA + ';--hc2:' + headB + '">' +
+      'style="--c:' + list.color + ';--hc-ink:' + onColor(list.color) + '">' +
       iconBadge(list.icon, list.color, 'is-glass') +
       '<span class="lc-name">' + esc(list.name) + '</span>' +
       '<span class="lc-count">' + openCount + '/' + all.length + '</span>' +

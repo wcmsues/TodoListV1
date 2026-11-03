@@ -215,25 +215,26 @@ svg{display:block;}
 
 .lc-head{
   display:flex;align-items:center;gap:8px;
-  padding:11px 13px 10px;color:#fff;
-  background:linear-gradient(135deg,var(--hc,var(--c)) 0%,var(--hc2,var(--c)) 100%);
+  padding:11px 13px 10px;
+  color:var(--hc-ink,#fff);
+  background:var(--c);
   transition:filter .16s ease;
 }
-.lc-head:active{filter:brightness(.93);}
+.lc-head:active{filter:brightness(.94);}
 .lc-name{
   flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:-.2px;
-  color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.08);
+  color:inherit;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .lc-count{
-  flex:none;font-size:13px;font-weight:600;color:rgba(255,255,255,.88);
+  flex:none;font-size:13px;font-weight:600;color:inherit;opacity:.82;
   letter-spacing:.2px;font-variant-numeric:tabular-nums;
 }
-.lc-arrow{width:13px;height:13px;color:rgba(255,255,255,.9);fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
-/* 头部图标：直接融入渐变底色，只留白色字形 */
+.lc-arrow{width:13px;height:13px;color:inherit;opacity:.82;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+/* 头部图标：只留字形，跟随文字色融进纯色底 */
 .icon-badge.is-glass{
   width:22px;height:22px;border-radius:0;
-  background:none;box-shadow:none;
+  background:none;box-shadow:none;color:inherit;
 }
 .icon-badge.is-glass svg{width:18px;height:18px;stroke-width:1.9;}
 

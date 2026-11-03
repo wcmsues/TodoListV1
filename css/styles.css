@@ -369,6 +369,13 @@ svg{display:block;}
 .tr-meta{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:var(--text2);}
 .tr-meta svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .tr-meta .is-overdue{color:var(--red);}
+/* 多日期：列表行里逐个列出日期，已完成的划掉、过期未完成的标红 */
+.tr-meta .tr-dates{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:4px;min-width:0;}
+.tr-meta .tr-date{white-space:nowrap;}
+.tr-meta .tr-date.is-done{color:var(--text3);text-decoration:line-through;}
+.tr-meta .tr-date.is-overdue{color:var(--red);}
+.tr-meta .tr-date-sep{color:var(--text3);}
+.tr-meta .tr-time{flex:none;color:var(--text2);}
 .tr-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
 .tr-note{
   margin-top:4px;font-size:13px;line-height:1.5;color:var(--text2);

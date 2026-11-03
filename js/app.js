@@ -537,11 +537,27 @@ function progressHTML(t, color){
   return '<div class="pbar-row"><div class="pbar"><i style="width:' + p + '%;background:' + color + '"></i></div>' +
     '<span class="pbar-num">' + p + '%</span></div>';
 }
-function metaHTML(t, cls){
-  if (!t.date) return '';
-  return '<div class="' + (cls || 'lc-meta') + '">' + svg('calendar') +
-    '<span class="' + (isOverdue(t) ? 'is-overdue' : '') + '">' +
-      fmtDate(t.date) + (t.time ? ' ' + t.time : '') + '</span></div>';
+function metaHTML(t, cls, showAll){
+  const ds = todoDates(t);
+  if (!ds.length) return '';
+  const box = cls || 'lc-meta';
+  if (!showAll || ds.length === 1) {
+    return '<div class="' + box + '">' + svg('calendar') +
+      '<span class="' + (isOverdue(t) ? 'is-overdue' : '') + '">' +
+        fmtDate(t.date) + (t.time ? ' ' + t.time : '') + '</span></div>';
+  }
+  // 多日期：列表里把每个日期都列出来，已完成的那几天划掉，过期未完成的标红
+  const today = todayISO();
+  const parts = ds.map(function(d){
+    const done = occDone(t, d);
+    const overdue = !done && d < today;
+    return '<span class="tr-date' + (done ? ' is-done' : '') + (overdue ? ' is-overdue' : '') + '">' +
+      fmtDate(d) + '</span>';
+  }).join('<span class="tr-date-sep">·</span>');
+  return '<div class="' + box + '">' + svg('calendar') +
+    '<span class="tr-dates">' + parts + '</span>' +
+    (t.time ? '<span class="tr-time">' + esc(t.time) + '</span>' : '') +
+  '</div>';
 }
 
 /* ============================================================
@@ -1145,7 +1161,7 @@ function listRowHTML(t, list){
         '<div class="tr-title' + (done ? ' is-done' : '') + '">' + esc(t.title) + '</div>' +
         noteHTML(t, 'tr-note') +
         progressHTML(t, c) +
-        metaHTML(t, 'tr-meta') +
+        metaHTML(t, 'tr-meta', true) +
       '</div>' +
       flagHTML(t) +
     '</div>', t.id);

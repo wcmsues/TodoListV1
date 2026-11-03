@@ -242,46 +242,53 @@ function seed(){
     { id:'l4', name:'购物', icon:'cart',      color:PALETTE[12] },
     { id:'l5', name:'电影', icon:'clapper',   color:PALETTE[2] }
   ];
-  /* 日期用相对今天的偏移，保证任何时候打开都能看到
-     今日 / 本周 / 本月 / 逾期 / 无日期 / 已完成 等状态 */
+  /* 日期都按「相对今天」的偏移生成，保证任何时候打开都能看到：
+     逾期 / 今天（多个时间）/ 本周 / 本月 / 下月 / 无日期，
+     以及带旗标、带进度、带备注、跨年份已完成的待办 */
   const T = [
-    /* 工作：置顶、今天、逾期、本周、本月、无日期、已完成 */
+    /* 工作：逾期、今天、无日期、本周、本月、旗标、两个年份的已完成 */
     { list:'l1', title:'写本周周报', date:isoOffset(0), time:'10:00', progress:60,
       note:'汇总进度、风险与下周计划' },
     { list:'l1', title:'回复客户需求邮件', date:isoOffset(-1), time:'09:30' },
     { list:'l1', title:'整理产品需求文档', progress:35,
       note:'先补充核心流程与边界情况' },
-    { list:'l1', title:'准备下周评审材料', date:isoOffset(4), time:'14:00', starred:true },
+    { list:'l1', title:'准备下周评审材料', date:isoOffset(4), time:'14:00', starred:true,
+      note:'周五前定稿，提前发到群里' },
     { list:'l1', title:'提交季度预算表', date:isoOffset(10), time:'11:00' },
-    { list:'l1', title:'提交上月报销单', date:isoOffset(-2), done:true, doneAt:isoOffset(-1) },
+    { list:'l1', title:'提交上月报销单', date:isoOffset(-2), done:true, doneAt:isoOffset(-2) },
+    { list:'l1', title:'归档去年项目资料', date:isoOffset(-380), done:true, doneAt:isoOffset(-380) },
 
-    /* 学习 */
+    /* 学习：无日期、今天、本周、逾期旗标、下月、两个年份的已完成 */
     { list:'l2', title:'读完《深度工作》第 3 章', progress:45,
       note:'每天 20 页，读完写三句总结' },
     { list:'l2', title:'英语听力练习 30 分钟', date:isoOffset(0), time:'20:00' },
     { list:'l2', title:'整理笔记到知识库', date:isoOffset(3), time:'21:00', progress:20,
       note:'按主题归档，补上标签页目录' },
+    { list:'l2', title:'复习 CSS Grid 布局', date:isoOffset(-2), starred:true },
+    { list:'l2', title:'报名下月线上课程', date:isoOffset(35) },
     { list:'l2', title:'完成 CSS 布局课程', date:isoOffset(-4), done:true, doneAt:isoOffset(-3) },
+    { list:'l2', title:'读完《人月神话》', date:isoOffset(-740), done:true, doneAt:isoOffset(-740) },
 
-    /* 生活 */
+    /* 生活：逾期、本周、本月、今天已完成、更早已完成 */
     { list:'l3', title:'缴纳水电费', date:isoOffset(-1), time:'20:00',
       note:'月底前缴清，避免滞纳金' },
     { list:'l3', title:'预约一次牙医', date:isoOffset(2), time:'09:30' },
     { list:'l3', title:'周末大扫除', date:isoOffset(5), time:'15:00',
       note:'厨房、卫生间、阳台三个区域' },
-    { list:'l3', title:'预约年度体检', date:isoOffset(12), time:'10:30' },
+    { list:'l3', title:'预约年度体检', date:isoOffset(18), time:'10:30' },
     { list:'l3', title:'换洗床单被套', date:isoOffset(0), done:true, doneAt:isoOffset(0) },
+    { list:'l3', title:'整理换季衣物', date:isoOffset(-45), done:true, doneAt:isoOffset(-45) },
 
-    /* 购物 */
+    /* 购物：今天、无日期、下周、已完成 */
     { list:'l4', title:'买牛奶和鸡蛋', date:isoOffset(0), time:'18:30' },
     { list:'l4', title:'买一个收纳盒' },
     { list:'l4', title:'补货洗衣液', date:isoOffset(7) },
-    { list:'l4', title:'买酱油', date:isoOffset(-3), done:true, doneAt:isoOffset(-2) },
+    { list:'l4', title:'买酱油', date:isoOffset(-3), done:true, doneAt:isoOffset(-3) },
 
-    /* 电影 */
+    /* 电影：本周、无日期、去年已完成 */
     { list:'l5', title:'看《星际穿越》', date:isoOffset(6), time:'19:30' },
     { list:'l5', title:'看《让子弹飞》', note:'周末和朋友一起看' },
-    { list:'l5', title:'看《肖申克的救赎》', date:isoOffset(-380), done:true, doneAt:isoOffset(-366) }
+    { list:'l5', title:'看《肖申克的救赎》', date:isoOffset(-366), done:true, doneAt:isoOffset(-366) }
   ];
   const todos = T.map((o, i) => ({
     id: 's' + (i + 1),

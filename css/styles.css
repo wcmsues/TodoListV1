@@ -149,6 +149,41 @@ svg{display:block;}
   display:flex;align-items:center;justify-content:space-between;
   padding:16px 4px 8px;font-size:13px;font-weight:500;color:var(--text2);
 }
+/* 日历：右侧「今天」快捷回位 + 计数 */
+.cal-label-right{display:flex;align-items:center;gap:10px;}
+.cal-today{
+  height:26px;padding:0 11px;border-radius:999px;
+  font-size:12.5px;font-weight:600;color:var(--blue);
+  background:rgba(10,132,255,.12);
+  transition:transform .16s ease,background .2s ease;
+}
+.cal-today[hidden]{display:none!important;}
+.cal-today:active{transform:scale(.94);background:rgba(10,132,255,.2);}
+
+/* 已完成：右侧年份筛选 + 计数 */
+.done-label-right{display:flex;align-items:center;gap:10px;}
+.year-chip{
+  display:inline-flex;align-items:center;gap:1px;
+  height:26px;padding:0 7px 0 10px;border-radius:999px;
+  font-size:12.5px;font-weight:600;color:var(--text2);
+  background:var(--fill);
+  transition:background .2s ease,color .2s ease,transform .16s ease;
+}
+.year-chip[hidden]{display:none!important;}
+.year-chip svg{
+  width:13px;height:13px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;opacity:.65;
+}
+.year-chip.is-active{color:var(--blue);background:rgba(10,132,255,.12);}
+.year-chip.is-open{background:var(--fill-2);}
+.year-chip:active{transform:scale(.95);}
+
+/* 年份菜单：锚在胶囊下方，无遮罩变暗，iOS 菜单的弹出感 */
+.year-backdrop{background:transparent;}
+.year-menu{min-width:186px;padding:6px;}
+.year-item{height:42px;}
+.year-item > span{flex:1;text-align:left;}
+.year-item svg{width:15px;height:15px;flex:none;color:var(--blue);stroke-width:2.6;}
 
 /* 空状态 */
 .empty-state{padding:56px 20px;text-align:center;color:var(--text2);animation:viewIn .3s ease both;}
@@ -323,7 +358,7 @@ svg{display:block;}
 .check.is-done{background:#E4E4EA;border-color:#E4E4EA;}
 .check.is-done svg{stroke:#9A9AA2;opacity:1;transform:none;}
 
-.tr-title{font-size:16px;line-height:1.35;color:var(--text);word-break:break-word;}
+.tr-title{font-size:15px;line-height:1.35;color:var(--text);word-break:break-word;}
 .tr-title.is-done{color:var(--text3);text-decoration:line-through;}
 .tr-meta{display:flex;align-items:center;gap:4px;margin-top:4px;font-size:12px;color:var(--text2);}
 .tr-meta svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -337,15 +372,6 @@ svg{display:block;}
 .tr-main .pbar{height:6px;}
 .tr-main .pbar-row{margin-top:7px;}
 .tr-main .pbar-num{font-size:11.5px;}
-.tr-side{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:6px;padding-bottom:14px;}
-.tr-list-name{font-size:11.5px;color:var(--text2);white-space:nowrap;}
-/* 已完成行：列表图标在上、名称在下，整体垂直居中 */
-.tr-side.is-done-side{align-items:center;justify-content:center;padding-bottom:0;gap:3px;align-self:center;}
-.tr-list-icon{display:flex;align-items:center;justify-content:center;}
-.tr-list-icon svg{
-  width:16px;height:16px;fill:none;stroke:currentColor;
-  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;
-}
 
 /* 行内排序按钮 */
 .tr-tools{display:none;gap:4px;margin-top:8px;}
@@ -1000,7 +1026,13 @@ body{background:var(--page);}
 #listCard.is-sorting .swipe{overflow:visible;}
 #listCard.is-sorting .swipe-body{transform:none!important;}
 .big-card > .swipe:first-child .todo-row{padding-top:14px;}
-.big-card > .swipe:last-child .tr-main{border-bottom:0;}
+/* 行分隔线画在后一行的顶边，而不是行内容的下边：后者会被 swipe 的 overflow
+   按小数像素裁掉，出现「有的行有线、有的没有」；顶部线整条都在容器内，稳定可见 */
+.big-card .tr-main{border-bottom:0;}
+.big-card > .swipe + .swipe::before{
+  content:'';position:absolute;top:0;left:46px;right:0;height:1px;
+  background:var(--line);z-index:2;pointer-events:none;
+}
 .cal-day-card > .swipe + .swipe{border-top:1px solid var(--line);}
 
 /* 长按菜单 */

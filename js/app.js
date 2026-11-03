@@ -518,6 +518,7 @@ function activateView(name){
    8. 主渲染
    ============================================================ */
 function renderApp(){
+  closeYearMenu();
   const cur = current();
   let base = cur, sheetState = null;
   if (cur.name === 'sheet') {
@@ -721,22 +722,57 @@ function weekDates(iso){
   return out;
 }
 
-function calRangeBounds(range){
-  const base = parseISO(calSelDate);
-  if (range === 'day') return { start: calSelDate, end: calSelDate };
+/* 周期：某一天所在的日 / 周（周一到周日）/ 月 */
+function periodBounds(range, iso){
+  const base = parseISO(iso);
+  if (range === 'day') return { start: iso, end: iso };
   if (range === 'month') {
     return {
       start: toISO(new Date(base.getFullYear(), base.getMonth(), 1)),
       end: toISO(new Date(base.getFullYear(), base.getMonth() + 1, 0))
     };
   }
-  // 本周：周一到周日
   const wd = (base.getDay() + 6) % 7;
   const mon = new Date(base); mon.setDate(base.getDate() - wd);
   const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
   return { start: toISO(mon), end: toISO(sun) };
 }
-const CAL_LABEL = { day:'今日', week:'本周', month:'本月' };
+function calRangeBounds(range){ return periodBounds(range, calSelDate); }
+
+function addDaysISO(iso, n){
+  const d = parseISO(iso); d.setDate(d.getDate() + n); return toISO(d);
+}
+function addYearsISO(iso, n){
+  const d = parseISO(iso);
+  const y = d.getFullYear() + n;
+  const last = new Date(y, d.getMonth() + 1, 0).getDate();
+  return toISO(new Date(y, d.getMonth(), Math.min(d.getDate(), last)));
+}
+/* 可浏览范围：待办日期跨度 ∪ 今天前后各一年，避免在没数据的年份空翻 */
+function calLimits(){
+  let min = addYearsISO(todayISO(), -1);
+  let max = addYearsISO(todayISO(), 1);
+  DB.todos.forEach(function(t){
+    if (!t.date) return;
+    if (t.date < min) min = t.date;
+    if (t.date > max) max = t.date;
+  });
+  return { min: min, max: max };
+}
+/* 前进 / 后退的目标日期：周按整周跳，月按整月跳并夹取日号（1月31日 → 2月28日） */
+function calShiftTarget(range, step){
+  if (range === 'month'){
+    const s = parseISO(calRangeBounds('month').start);
+    const first = new Date(s.getFullYear(), s.getMonth() + step, 1);
+    const last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    return toISO(new Date(first.getFullYear(), first.getMonth(), Math.min(parseISO(calSelDate).getDate(), last)));
+  }
+  return addDaysISO(calSelDate, (range === 'week' ? 7 : 1) * step);
+}
+
+const WEEKDAY_CN = '日一二三四五六';
+function fmtMD(iso){ const d = parseISO(iso); return (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
+function fmtMDY(iso){ const d = parseISO(iso); return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
 
 /* 顶部周条：一周 7 天，有安排的日期下方带小圆点 */
 function renderCalWeek(){
@@ -810,9 +846,11 @@ function renderCalendar(motion){
   $('#calEmpty').hidden = items.length > 0;
   const emptyText = $('#calEmptyText');
   if (emptyText) {
-    emptyText.textContent = (range === 'day' ? calDayName() : '这段时间') +
-      (UI.hideDone ? '没有未完成的安排' : '没有安排');
+    emptyText.textContent = calPeriodText() + (UI.hideDone ? '没有未完成的安排' : '没有安排');
   }
+  // 「今天」只在翻到别的周期时出现
+  const todayBtn = $('#calToday');
+  if (todayBtn) todayBtn.hidden = calIsCurrent();
 }
 
 /* 周条选日后，把列表滚动到对应那天 */
@@ -826,14 +864,39 @@ function scrollToCalDay(iso){
   catch (e) { sc.scrollTop = top; }
 }
 
-function calDayName(iso){
-  const d = iso || calSelDate;
-  return d === todayISO() ? '今天' : fmtDate(d) + ' 周' + '日一二三四五六'[parseISO(d).getDay()];
+/* 当前周期的文字描述（不带「本周 / 本月」前缀） */
+function calPeriodText(){
+  const range = UI.calRange;
+  const b = calRangeBounds(range);
+  if (range === 'day') {
+    return calSelDate === todayISO() ? '今天' : fmtDate(calSelDate) + ' 周' + WEEKDAY_CN[parseISO(calSelDate).getDay()];
+  }
+  if (range === 'month') {
+    const s = parseISO(b.start);
+    return s.getFullYear() + '年' + (s.getMonth() + 1) + '月';
+  }
+  // 周：同月简写「11月3日–9日」，跨月补月份，跨年补年份
+  if (b.start.slice(0, 4) !== b.end.slice(0, 4)) return fmtMDY(b.start) + '–' + fmtMDY(b.end);
+  if (b.start.slice(0, 7) === b.end.slice(0, 7)) return fmtMD(b.start) + '–' + parseISO(b.end).getDate() + '日';
+  return fmtMD(b.start) + '–' + fmtMD(b.end);
+}
+
+/* 当前展示的是否就是今天 / 本周 / 本月 */
+function calIsCurrent(){
+  const range = UI.calRange;
+  const b = calRangeBounds(range), cur = periodBounds(range, todayISO());
+  return b.start === cur.start && b.end === cur.end;
 }
 
 function calRangeTitle(){
-  if (UI.calRange === 'day') return calDayName();
-  return CAL_LABEL[UI.calRange];
+  const range = UI.calRange;
+  if (range === 'day') {
+    return calSelDate === todayISO()
+      ? '今天 · ' + fmtDate(calSelDate) + ' 周' + WEEKDAY_CN[parseISO(calSelDate).getDay()]
+      : calPeriodText();
+  }
+  const prefix = calIsCurrent() ? (range === 'week' ? '本周 · ' : '本月 · ') : '';
+  return prefix + calPeriodText();
 }
 
 function calDayHTML(group){
@@ -895,7 +958,16 @@ function renderDone(){
   });
   $('#doneChips').innerHTML = chips.join('');
 
-  $('#btnYearFilter').classList.toggle('is-active', UI.doneYear !== 'all');
+  // 年份筛选：只在已完成记录跨多个年份时出现，单年份时不留无效控件
+  const years = doneYears();
+  if (years.length < 2 || (UI.doneYear !== 'all' && years.indexOf(UI.doneYear) < 0)) UI.doneYear = 'all';
+  const yearBtn = $('#btnYearFilter');
+  if (yearBtn) {
+    yearBtn.hidden = years.length < 2;
+    const yearLbl = $('#yearBtnLabel');
+    if (yearLbl) yearLbl.textContent = UI.doneYear === 'all' ? '年份' : UI.doneYear + '年';
+    yearBtn.classList.toggle('is-active', UI.doneYear !== 'all');
+  }
 
   const items = DB.todos.filter(t =>
     t.done &&
@@ -904,29 +976,56 @@ function renderDone(){
   ).sort((a, b) => String(b.doneAt).localeCompare(String(a.doneAt)));
 
   $('#doneCount').textContent = items.length;
+
+  // 和日历页同一套排列：按日期分组，每天一个日期头 + 一张卡片
+  const groups = [];
+  let cur = null;
+  items.forEach(function(t){
+    const d = t.doneAt || t.date || '';
+    if (!cur || cur.date !== d) { cur = { date: d, items: [] }; groups.push(cur); }
+    cur.items.push(t);
+  });
+
   const card = $('#doneCard');
-  card.innerHTML = items.map(doneRowHTML).join('');
+  card.innerHTML = groups.map(doneDayHTML).join('');
   card.style.display = items.length ? 'block' : 'none';
   $('#doneEmpty').hidden = items.length > 0;
+  const emptyTitle = $('#doneEmpty p');
+  if (emptyTitle) {
+    emptyTitle.textContent = UI.doneYear === 'all'
+      ? '还没有已完成的待办'
+      : UI.doneYear + ' 年还没有已完成的待办';
+  }
 }
 
-function doneRowHTML(t){
+function doneDayHTML(group){
+  const d = parseISO(group.date);
+  const wd = WEEKDAY_CN[d.getDay()];
+  return '<div class="cal-day" data-date="' + group.date + '">' +
+    '<div class="cal-day-head">' +
+      '<span class="cal-day-date">' + fmtDate(group.date) + '</span>' +
+      '<span class="cal-day-wd">周' + wd + '</span>' +
+      '<span class="cal-day-num">' + group.items.length + '</span>' +
+    '</div>' +
+    '<div class="cal-day-card">' + group.items.map(doneItemHTML).join('') + '</div>' +
+  '</div>';
+}
+
+function doneItemHTML(t){
   const list = findList(t.listId);
+  const color = list ? list.color : PALETTE[0];
   return swipeWrap(
-    '<div class="todo-row" data-todo="' + t.id + '">' +
-      '<button class="check is-done" data-act="toggle" data-id="' + t.id + '" aria-label="恢复为未完成">' +
+    '<div class="cal-row" data-id="' + t.id + '">' +
+      '<button class="cal-check is-done" data-act="toggle" data-id="' + t.id + '" ' +
+        'style="--c:' + ink(color) + '" aria-label="恢复为未完成">' +
         '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg></button>' +
-      '<div class="tr-main" data-act="edit-todo" data-id="' + t.id + '" style="padding-top:2px">' +
-        '<div class="tr-meta" style="margin-top:0">' + svg('calendar') +
-          '<span>' + fmtDate(t.doneAt || t.date) + '</span></div>' +
-        '<div class="tr-title" style="margin-top:3px">' + esc(t.title) + '</div>' +
-        noteHTML(t, 'tr-note') +
+      '<div class="cal-row-main" data-act="edit-todo" data-id="' + t.id + '">' +
+        '<div class="cal-row-title">' +
+          (t.starred ? '<span class="cal-flag" aria-label="已标记旗标">' + svg('flag') + '</span>' : '') +
+          '<span class="cal-text">' + esc(t.title) + '</span></div>' +
+        (list ? '<div class="cal-row-meta"><span class="cr-list">' + esc(list.name) + '</span></div>' : '') +
       '</div>' +
-      '<div class="tr-side is-done-side">' +
-        '<span class="tr-list-icon" style="color:var(--text2)">' +
-          svg(list ? list.icon : 'list') + '</span>' +
-        '<span class="tr-list-name">' + esc(list ? list.name : '') + '</span></div>' +
-    '</div>', t.id, true);
+    '</div>', t.id);
 }
 
 /* ---------- 列表详情 ---------- */
@@ -1011,7 +1110,6 @@ function renderSheet(p){
   if (p.kind === 'settings') sheet.innerHTML = settingsHTML();
   else if (p.kind === 'todo') sheet.innerHTML = todoSheetHTML(p);
   else if (p.kind === 'todoView') sheet.innerHTML = todoViewHTML(p);
-  else if (p.kind === 'year') sheet.innerHTML = yearSheetHTML();
   else if (p.kind === 'listMenu') sheet.innerHTML = listMenuHTML(p);
   else if (p.kind === 'import') sheet.innerHTML = importSheetHTML();
   else if (p.kind === 'confirm') sheet.innerHTML = confirmSheetHTML(p);
@@ -1370,22 +1468,61 @@ function syncThemeSeg(seg){
   if (thumb) thumb.style.transform = 'translateX(' + (idx * 100) + '%)';
 }
 
-/* ---------- 年份筛选 ---------- */
-function yearSheetHTML(){
-  const years = Array.from(new Set(
+/* ---------- 年份筛选（锚定在胶囊下方的小菜单） ---------- */
+function doneYears(){
+  return Array.from(new Set(
     DB.todos.filter(t => t.done && t.doneAt).map(t => yearOf(t.doneAt))
   )).sort().reverse();
-  const opts = ['all'].concat(years);
-  return grab() +
-    '<div class="sheet-head"><h2 class="sheet-title">年份</h2></div>' +
-    '<div class="sheet-body"><div class="menu-card">' +
-    opts.map(y => {
-      const on = UI.doneYear === y;
-      return '<button class="menu-item" data-act="pick-year" data-year="' + y + '">' +
-        '<span style="flex:1">' + (y === 'all' ? '全部年份' : y + ' 年') + '</span>' +
-        (on ? '<span style="color:#0A84FF">' + svg('check') + '</span>' : '') + '</button>';
-    }).join('') +
-    '</div></div>';
+}
+let yearMenuHost = null;
+function closeYearMenu(){
+  if (yearMenuHost) {
+    yearMenuHost.remove();
+    yearMenuHost = null;
+  }
+  const btn = $('#btnYearFilter');
+  if (btn) btn.classList.remove('is-open');
+}
+function openYearMenu(){
+  const btn = $('#btnYearFilter');
+  const app = $('#app');
+  if (!btn || !app) return;
+  closeYearMenu();
+  haptic(8);
+  const opts = ['all'].concat(doneYears());
+  const host = document.createElement('div');
+  host.className = 'ctx-host ctx-host-year';
+  host.innerHTML =
+    '<div class="ctx-backdrop year-backdrop" data-act="year-close"></div>' +
+    '<div class="ctx-menu year-menu" role="menu" aria-label="按年份筛选">' +
+      opts.map(function(y){
+        const on = UI.doneYear === y;
+        return '<button class="ctx-item year-item' + (on ? ' is-selected' : '') + '"' +
+          ' role="menuitemradio" aria-checked="' + (on ? 'true' : 'false') + '"' +
+          ' data-act="pick-year" data-year="' + y + '">' +
+          '<span>' + (y === 'all' ? '全部年份' : y + ' 年') + '</span>' +
+          (on ? svg('check') : '') + '</button>';
+      }).join('') +
+    '</div>';
+  app.appendChild(host);
+  yearMenuHost = host;
+
+  const menu = host.querySelector('.year-menu');
+  const ar = app.getBoundingClientRect();
+  const br = btn.getBoundingClientRect();
+  const mw = menu.offsetWidth || 190;
+  const mh = menu.offsetHeight || 160;
+  const left = Math.min(Math.max(10, br.right - ar.left - mw), Math.max(10, ar.width - mw - 10));
+  let top = br.bottom - ar.top + 8;
+  let above = false;
+  if (top + mh > ar.height - 10) {
+    top = br.top - ar.top - mh - 8;
+    above = true;
+  }
+  menu.style.left = left + 'px';
+  menu.style.top = Math.max(10, top) + 'px';
+  menu.style.transformOrigin = above ? 'bottom right' : 'top right';
+  btn.classList.add('is-open');
 }
 
 /* ---------- 列表更多菜单 ---------- */
@@ -1611,7 +1748,14 @@ document.addEventListener('click', function(e){
     case 'done-filter':
       UI.doneList = id; renderDone(); break;
     case 'pick-year':
-      UI.doneYear = el.dataset.year; back(); break;
+      // 菜单里选年份：就地生效，不压弹层也不返回
+      closeYearMenu();
+      UI.doneYear = el.dataset.year;
+      haptic(8);
+      renderDone();
+      break;
+    case 'year-close':
+      closeYearMenu(); break;
 
     /* 设置面板 */
     case 'toggle-edit': {
@@ -1770,14 +1914,23 @@ document.addEventListener('click', function(e){
     }
     case 'cal-shift': {
       const step = Number(el.dataset.step) || 1;
-      const d = parseISO(calSelDate);
-      if (UI.calRange === 'month') d.setMonth(d.getMonth() + step);
-      else d.setDate(d.getDate() + (UI.calRange === 'week' ? 7 : 1) * step);
-      calSelDate = toISO(d);
+      const target = calShiftTarget(UI.calRange, step);
+      const tb = periodBounds(UI.calRange, target);
+      const lim = calLimits();
+      if (tb.end < lim.min) { haptic(12); toast('已到最早可查看的时间'); break; }
+      if (tb.start > lim.max) { haptic(12); toast('已到最晚可查看的时间'); break; }
+      calSelDate = target;
       haptic(8);
       renderCalendar({ dir: step });
       break;
     }
+    case 'cal-today':
+      // 回到今天 / 本周 / 本月，保持当前密度
+      calSelDate = todayISO();
+      haptic(8);
+      renderCalendar({ dir: 0 });
+      try { $('#calScroll').scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+      break;
     case 'cal-pick-day':
       // 周条只移动日期指针，不改变范围
       calSelDate = el.dataset.date || todayISO();
@@ -2431,7 +2584,8 @@ function bindStatic(){
     deleteList(cur.params.listId);
   });
   $('#btnYearFilter').addEventListener('click', function(){
-    push('sheet', { kind:'year' });
+    if (yearMenuHost) closeYearMenu();
+    else openYearMenu();
   });
   $('#btnSettingsDone').addEventListener('click', function(){
     UI.editing = false;
@@ -2473,12 +2627,23 @@ function bindStatic(){
 
   // 标题输入框回车：连续添加
   document.addEventListener('keydown', function(e){
-    if (e.key !== 'Enter') return;
-    if (e.target && e.target.id === 'todoTitle') {
-      e.preventDefault();
-      saveTodoSheet({ keepOpen: true });
+    if (e.key === 'Enter') {
+      if (e.target && e.target.id === 'todoTitle') {
+        e.preventDefault();
+        saveTodoSheet({ keepOpen: true });
+      }
+      return;
     }
+    if (e.key === 'Escape' && yearMenuHost) closeYearMenu();
   });
+
+  // 滚动就收起年份菜单（和系统菜单一致）
+  const doneScroll = $('#doneScroll');
+  if (doneScroll) {
+    doneScroll.addEventListener('scroll', function(){
+      if (yearMenuHost) closeYearMenu();
+    }, { passive: true });
+  }
 
   window.addEventListener('storage', function(e){
     if (e.key === KEY) { loadAll(); renderApp(); }

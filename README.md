@@ -43,14 +43,20 @@ npx http-server -p 5173
 ```
 TodoListV1/
 ├── index.html            # 页面骨架（视图 / 弹层 / 图标 sprite）
-├── styles.css            # 卡片式 UI 与移动端适配
-├── app.js                # 数据模型、渲染与交互逻辑
+├── css/
+│   └── styles.css        # 卡片式 UI 与移动端适配
+├── js/
+│   └── app.js            # 数据模型、渲染与交互逻辑
+├── icons/                # 图标与 PWA 资源
+│   ├── icon.svg
+│   ├── icon-192.png
+│   ├── icon-512.png
+│   ├── favicon-32.png
+│   └── apple-touch-icon.png
 ├── manifest.json         # PWA 清单
-├── icon.svg              # 矢量图标
-├── icon-192.png          # PWA 图标 192×192
-├── icon-512.png          # PWA 图标 512×512
-├── favicon-32.png        # 浏览器标签页图标
-└── apple-touch-icon.png  # iOS 主屏幕图标
+├── _headers              # 静态托管的缓存响应头
+├── README.md
+└── .gitignore
 ```
 
 ## 数据存储
@@ -76,5 +82,5 @@ git push
 ## 开发说明
 
 - 无第三方依赖，改完代码刷新页面即可生效；改样式注意清缓存（或 DevTools 勾选 Disable cache）
-- 新增列表的配色取自 `app.js` 中的 `PALETTE` 常量
+- 新增列表的配色取自 `js/app.js` 中的 `PALETTE` 常量
 - 提交前请确认 `.DS_Store`、`.codebuddy/` 等本地文件不会被纳入版本控制（已在 `.gitignore` 中排除）

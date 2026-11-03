@@ -599,6 +599,7 @@ function renderHome(){
   if (!lists.length) { board.innerHTML = ''; return; }
 
   const cards = lists.map(listCardHTML);
+  board.dataset.cols = UI.cols === 1 ? '1' : '2';
   if (UI.cols === 1) {
     board.innerHTML = '<div class="board-col">' + cards.join('') + '</div>';
   } else {

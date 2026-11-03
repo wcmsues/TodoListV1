@@ -190,7 +190,7 @@ svg{display:block;}
 .board-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--gap);}
 
 .list-card{
-  background:var(--card);border-radius:var(--radius);overflow:hidden;
+  background:var(--card);border-radius:18px;overflow:hidden;
   box-shadow:var(--shadow);
   animation:cardIn .28s cubic-bezier(.2,.8,.2,1) both;
 }
@@ -214,46 +214,47 @@ svg{display:block;}
 .icon-badge.is-lg svg{width:24px;height:24px;stroke-width:1.9;}
 
 .lc-head{
-  display:flex;align-items:center;gap:10px;
-  padding:13px 16px 12px;color:#fff;
+  display:flex;align-items:center;gap:8px;
+  padding:11px 13px 10px;color:#fff;
   background:linear-gradient(135deg,var(--hc,var(--c)) 0%,var(--hc2,var(--c)) 100%);
   transition:filter .16s ease;
 }
 .lc-head:active{filter:brightness(.93);}
 .lc-name{
-  flex:1;min-width:0;font-size:17px;font-weight:600;letter-spacing:-.2px;
+  flex:1;min-width:0;font-size:15px;font-weight:600;letter-spacing:-.2px;
   color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.08);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .lc-count{
-  flex:none;font-size:14px;font-weight:600;color:rgba(255,255,255,.86);
+  flex:none;font-size:13px;font-weight:600;color:rgba(255,255,255,.88);
   letter-spacing:.2px;font-variant-numeric:tabular-nums;
 }
-.lc-arrow{width:14px;height:14px;color:rgba(255,255,255,.9);fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+.lc-arrow{width:13px;height:13px;color:rgba(255,255,255,.9);fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
 /* 头部图标：直接融入渐变底色，只留白色字形 */
 .icon-badge.is-glass{
-  width:26px;height:26px;border-radius:0;
+  width:22px;height:22px;border-radius:0;
   background:none;box-shadow:none;
 }
-.icon-badge.is-glass svg{width:21px;height:21px;stroke-width:1.9;}
+.icon-badge.is-glass svg{width:18px;height:18px;stroke-width:1.9;}
 
-.lc-body{padding:6px 16px 14px;}
-.lc-item{display:flex;gap:12px;align-items:flex-start;padding:10px 0;}
+.lc-body{padding:4px 13px 12px;}
+.lc-item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;}
 .lc-item:active{opacity:.6;}
 .lc-check{
-  flex:none;position:relative;width:22px;height:22px;margin-top:1px;
-  border-radius:50%;border:1.9px solid var(--c);background:transparent;
+  flex:none;position:relative;width:20px;height:20px;margin-top:1px;
+  border-radius:50%;border:1.7px solid var(--c);background:transparent;
   transition:transform .16s ease;
 }
 .lc-check::after{content:'';position:absolute;inset:-11px;}
 .lc-check:active{transform:scale(.85);}
 .lc-main{flex:1;min-width:0;}
 .lc-title{
-  font-size:15px;font-weight:500;line-height:1.4;letter-spacing:-.1px;color:var(--text);
+  font-size:13.5px;font-weight:500;line-height:1.4;letter-spacing:-.1px;color:var(--text);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  word-break:break-word;
 }
-.lc-meta{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:var(--text2);}
-.lc-meta svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
+.lc-meta{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:11.5px;color:var(--text2);}
+.lc-meta svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;}
 .lc-meta .is-overdue{color:var(--red);}
 
 /* 旗标标记：待办行右侧（SF Symbols 旗标观感） */
@@ -269,16 +270,16 @@ svg{display:block;}
 .todo-row .flag-mark{margin-top:2px;padding-bottom:14px;}
 .lc-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
 .lc-note{
-  margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--text2);
+  margin-top:3px;font-size:11.5px;line-height:1.45;color:var(--text2);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   word-break:break-word;
 }
 
 /* 进度条 */
-.pbar-row{display:flex;align-items:center;gap:8px;margin-top:7px;}
-.pbar{flex:1;min-width:0;height:5px;border-radius:99px;background:rgba(120,120,135,.18);overflow:hidden;}
+.pbar-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
+.pbar{flex:1;min-width:0;height:4px;border-radius:99px;background:rgba(120,120,135,.18);overflow:hidden;}
 .pbar i{display:block;height:100%;border-radius:99px;transition:width .35s cubic-bezier(.2,.8,.2,1);}
-.pbar-num{flex:none;font-size:12px;font-weight:500;color:var(--text2);font-variant-numeric:tabular-nums;}
+.pbar-num{flex:none;font-size:11px;font-weight:500;color:var(--text2);font-variant-numeric:tabular-nums;}
 
 .tag-pill{
   display:inline-block;padding:1.5px 6px;border-radius:5px;
@@ -286,16 +287,30 @@ svg{display:block;}
 }
 
 .lc-add{
-  display:flex;align-items:center;justify-content:center;gap:5px;
-  width:100%;height:42px;margin-top:4px;padding:0 12px;border-radius:13px;
-  font-size:15px;font-weight:500;color:var(--c-ink,var(--c));
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  width:100%;height:36px;margin-top:2px;padding:0 10px;border-radius:11px;
+  font-size:13px;font-weight:500;color:var(--c-ink,var(--c));
   background:var(--c-10,rgba(120,120,135,.1));
   transition:background .16s ease,transform .16s ease;
 }
 .lc-add:active{transform:scale(.985);filter:brightness(.97);}
-.lc-add svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;}
+.lc-add svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;}
 
 .lc-empty{padding:10px 2px;font-size:12px;color:var(--text3);}
+
+/* 两列窄卡片：字号再收一档，一行能放下更多字 */
+.board[data-cols="2"] .lc-head{padding:10px 12px 8px;gap:7px;}
+.board[data-cols="2"] .lc-name{font-size:14px;}
+.board[data-cols="2"] .lc-count{font-size:12px;}
+.board[data-cols="2"] .icon-badge.is-glass svg{width:16px;height:16px;}
+.board[data-cols="2"] .lc-body{padding:3px 12px 10px;}
+.board[data-cols="2"] .lc-item{padding:7px 0;gap:9px;}
+.board[data-cols="2"] .lc-check{width:19px;height:19px;}
+.board[data-cols="2"] .lc-title{font-size:12.5px;}
+.board[data-cols="2"] .lc-note{font-size:11px;}
+.board[data-cols="2"] .lc-meta{font-size:10.5px;margin-top:4px;}
+.board[data-cols="2"] .pbar-num{font-size:10px;}
+.board[data-cols="2"] .lc-add{height:33px;border-radius:10px;font-size:12px;}
 
 /* ============================================================
    4. 大卡片列表（详情 / 已完成）

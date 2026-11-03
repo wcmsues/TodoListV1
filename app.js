@@ -153,17 +153,7 @@ function tint(hex, t){
     return s.length === 1 ? '0' + s : s;
   }).join('');
 }
-/* 纯色头部上的文字色：亮色（黄/绿/青/橙）配深色字，其余配白字 */
-function onColor(hex){
-  let h = String(hex || '#8E8E93').replace('#', '');
-  if (h.length === 3) h = h.split('').map(c => c + c).join('');
-  if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#FFFFFF';
-  const lin = v => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
-  const lum = 0.2126 * lin(parseInt(h.slice(0, 2), 16)) +
-              0.7152 * lin(parseInt(h.slice(2, 4), 16)) +
-              0.0722 * lin(parseInt(h.slice(4, 6), 16));
-  return 1.05 / (lum + 0.05) >= 3.2 ? '#FFFFFF' : '#1C1C1E';
-}
+
 /* ---------- 深浅色 ---------- */
 const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
 const darkMedia = (function(){
@@ -647,11 +637,11 @@ function listCardHTML(list){
   const shown = (UI.hideDone ? all.filter(t => !t.done) : all).slice().sort(todoOrder);
   const openCount = all.filter(t => !t.done).length;
   const items = shown.map(t => cardItemHTML(t, list)).join('') || '<div class="lc-empty">暂无待办</div>';
-  // 头部只用一层纯色（苹果系统色），文字按对比度选白或深
+  // 头部只用一层纯色（苹果系统色）
   return '<article class="list-card" data-list="' + list.id + '">' +
     '<div class="lc-head" data-act="open-list" data-id="' + list.id + '" ' +
-      'style="--c:' + list.color + ';--hc-ink:' + onColor(list.color) + '">' +
-      iconBadge(list.icon, list.color, 'is-glass') +
+      'style="--c:' + list.color + '">' +
+      svg(list.icon) +
       '<span class="lc-name">' + esc(list.name) + '</span>' +
       '<span class="lc-count">' + openCount + '/' + all.length + '</span>' +
       '<svg class="lc-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>' +
@@ -668,7 +658,7 @@ function cardItemHTML(t, list){
   const c = todoColor(t, list.color);
   return '<div class="lc-item' + (t.done ? ' is-done' : '') + '">' +
     '<button class="lc-check' + (t.done ? ' is-done' : '') + '" data-act="toggle" data-id="' + t.id + '" ' +
-      'style="--c:' + ink(c) + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
+      'style="--c:' + c + '" aria-label="' + (t.done ? '恢复为未完成' : '标记完成') + '">' +
       (t.done ? '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>' : '') +
     '</button>' +
     '<div class="lc-main" data-act="edit-todo" data-id="' + t.id + '">' +

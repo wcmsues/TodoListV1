@@ -674,7 +674,7 @@ function listCardHTML(list){
       'style="--c:' + list.color + '">' +
       svg(list.icon) +
       '<span class="lc-name">' + esc(list.name) + '</span>' +
-      '<span class="lc-count">' + openCount + '/' + all.length + '</span>' +
+      (openCount > 0 ? '<span class="lc-count">' + openCount + '</span>' : '') +
       '<svg class="lc-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>' +
     '</div>' +
     '<div class="lc-body">' + items +

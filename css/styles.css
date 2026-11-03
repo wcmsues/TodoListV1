@@ -265,11 +265,17 @@ svg{display:block;}
   color:inherit;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+/* 未完成条数：半透明白色小胶囊，未读角标的观感；为 0 时不渲染 */
 .lc-count{
-  flex:none;font-size:12.5px;font-weight:600;color:inherit;opacity:.9;
-  letter-spacing:.3px;font-variant-numeric:tabular-nums;
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  min-width:21px;height:19px;padding:0 6px;border-radius:99px;
+  background:rgba(255,255,255,.26);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18);
+  font-size:11.5px;font-weight:700;line-height:1;color:#fff;
+  letter-spacing:.2px;font-variant-numeric:tabular-nums;
 }
-.lc-arrow{width:14px;height:14px;color:inherit;opacity:.9;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none;}
+/* 进入列表的提示箭头：让位给右侧角标，弱化到 11px / 62% */
+.lc-arrow{width:11px;height:11px;color:inherit;opacity:.62;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;}
 
 .lc-body{padding:8px 10px 10px;}
 .lc-item{display:flex;gap:8px;align-items:flex-start;padding:6px 2px;}

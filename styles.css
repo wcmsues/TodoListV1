@@ -29,7 +29,8 @@
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;}
-html{-webkit-text-size-adjust:100%;overflow:hidden;}
+/* 关掉双击缩放：页面不跟着手势放大 */
+html{-webkit-text-size-adjust:100%;overflow:hidden;touch-action:manipulation;}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
   font-size:16px;line-height:1.45;color:var(--text);
@@ -923,7 +924,7 @@ body{background:var(--page);}
 }
 .search-bar input{
   flex:1;min-width:0;height:100%;border:0;outline:none;background:none;
-  font-size:15px;color:var(--text);
+  font-size:16px;color:var(--text);
 }
 .search-bar input::placeholder{color:var(--text3);}
 .search-bar input::-webkit-search-cancel-button,

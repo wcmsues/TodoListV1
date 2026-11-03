@@ -2493,9 +2493,17 @@ function toast(msg, actionText, onAction){
 /* ============================================================
    19. 启动
    ============================================================ */
+/* iOS 不认 viewport 的 user-scalable，双指/双击放大要在这里拦掉 */
+function lockZoom(){
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function(name){
+    document.addEventListener(name, function(e){ e.preventDefault(); }, { passive:false });
+  });
+}
+
 loadAll();
 applyTheme();
 bindThemeWatcher();
+lockZoom();
 bindStatic();
 syncColsIcon();
 renderApp();

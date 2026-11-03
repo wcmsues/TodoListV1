@@ -1019,6 +1019,10 @@ function doneDayHTML(group){
 function doneItemHTML(t){
   const list = findList(t.listId);
   const color = list ? list.color : PALETTE[0];
+  // 次行：列表名 · 备注（备注单行，过长省略）
+  const metaParts = [];
+  if (list) metaParts.push('<span class="cr-list">' + esc(list.name) + '</span>');
+  if (t.note) metaParts.push('<span class="cr-note">' + esc(t.note) + '</span>');
   return swipeWrap(
     '<div class="cal-row" data-id="' + t.id + '">' +
       '<button class="cal-check is-done" data-act="toggle" data-id="' + t.id + '" ' +
@@ -1028,7 +1032,9 @@ function doneItemHTML(t){
         '<div class="cal-row-title">' +
           (t.starred ? '<span class="cal-flag" aria-label="已标记旗标">' + svg('flag') + '</span>' : '') +
           '<span class="cal-text">' + esc(t.title) + '</span></div>' +
-        (list ? '<div class="cal-row-meta"><span class="cr-list">' + esc(list.name) + '</span></div>' : '') +
+        (metaParts.length
+          ? '<div class="cal-row-meta">' + metaParts.join('<span class="cr-sep">·</span>') + '</div>'
+          : '') +
       '</div>' +
     '</div>', t.id);
 }
@@ -1613,7 +1619,10 @@ function toggleTodo(id){
   if (!t) return;
   t.done = !t.done;
   t.doneAt = t.done ? todayISO() : '';
-  if (t.done) t.progress = 100;
+  if (t.done) {
+    t.progress = 100;
+    t.starred = false;   // 完成即取消旗标：已完成的事项不再需要旗标提醒
+  }
   haptic(12);
   save();
 

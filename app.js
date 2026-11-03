@@ -95,9 +95,9 @@ const ICON_GROUPS = [
 const KEY = 'todolist.v2';
 const UIKEY = 'todolist.v2.ui';
 const LEGACY = 'todolist.v1';
-/* Apple 系统色（浅色模式取值）：饱和度、明度统一，白色图标压在上面都清楚 */
-const PALETTE = ['#007AFF','#FF3B30','#FF9500','#FFCC00','#34C759','#00C7BE',
-                 '#32ADE6','#5856D6','#AF52DE','#FF2D55','#A2845E','#8E8E93'];
+/* 列表配色：与旧版一致的低饱和色板，白色图标压在上面都清楚 */
+const PALETTE = ['#4A78B5','#A34E4E','#E08A3C','#C9A227','#5FB35F','#8FC24A','#3FB6C4',
+                 '#2E7C8F','#3B82F6','#4F5BD5','#9B4FBF','#E8505B','#8B6B4A','#4B4F54'];
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.prototype.slice.call((r || document).querySelectorAll(s));
@@ -154,6 +154,25 @@ function tint(hex, t){
   }).join('');
 }
 
+/* 统一成 6 位大写十六进制，取不到就返回 '' */
+function normHex(hex){
+  let h = String(hex || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  return /^[0-9a-fA-F]{6}$/.test(h) ? '#' + h.toUpperCase() : '';
+}
+/* 旧数据里存的是高饱和系统色：换算到当前色板里最接近的一个 */
+function nearestPalette(hex){
+  const h = normHex(hex);
+  if (!h) return PALETTE[0];
+  const t = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  let best = PALETTE[0], bestDist = Infinity;
+  PALETTE.forEach(function(p){
+    const q = [1, 3, 5].map(i => parseInt(p.slice(i, i + 2), 16));
+    const d = Math.pow(t[0] - q[0], 2) + Math.pow(t[1] - q[1], 2) + Math.pow(t[2] - q[2], 2);
+    if (d < bestDist) { bestDist = d; best = p; }
+  });
+  return best;
+}
 /* ---------- 深浅色 ---------- */
 const THEME_LABEL = { system:'跟随系统', light:'浅色', dark:'深色' };
 const darkMedia = (function(){
@@ -217,11 +236,11 @@ let suppressClickUntil = 0;
    ============================================================ */
 function seed(){
   const L = [
-    { id:'l1', name:'工作', icon:'briefcase', color:'#FF3B30' },
-    { id:'l2', name:'学习', icon:'book',      color:'#007AFF' },
-    { id:'l3', name:'生活', icon:'home',      color:'#34C759' },
-    { id:'l4', name:'购物', icon:'cart',      color:'#FF9500' },
-    { id:'l5', name:'电影', icon:'clapper',   color:'#AF52DE' }
+    { id:'l1', name:'工作', icon:'briefcase', color:PALETTE[10] },
+    { id:'l2', name:'学习', icon:'book',      color:PALETTE[6] },
+    { id:'l3', name:'生活', icon:'home',      color:PALETTE[4] },
+    { id:'l4', name:'购物', icon:'cart',      color:PALETTE[12] },
+    { id:'l5', name:'电影', icon:'clapper',   color:PALETTE[2] }
   ];
   /* 日期用相对今天的偏移，保证任何时候打开都能看到
      今日 / 本周 / 本月 / 逾期 / 无日期 / 已完成 等状态 */
@@ -289,7 +308,7 @@ function normalizeDB(raw){
       id: l.id || uid(),
       name: String(l.name || '未命名').slice(0, 40),
       icon: ICONS[l.icon] ? l.icon : 'list',
-      color: /^#[0-9a-fA-F]{3,8}$/.test(l.color || '') ? l.color : PALETTE[0]
+      color: nearestPalette(l.color)
     });
   });
   const listIds = out.lists.map(l => l.id);
